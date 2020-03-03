@@ -76,9 +76,8 @@ function awaitPageLoading(){
 var stage = 0;
 var resultList = [];
 var asinList = [];
-//stage =1 在获取url list 
-//stage =2 在依次打开tab,获取商品列表
-//stage = 3 在获取每个商品的评论
+var db =undefined;
+
 chrome.contextMenus.create({
     "title": "爬取商品列表和商品评论",
     "contexts": ["page"],
@@ -87,7 +86,12 @@ chrome.contextMenus.create({
     ],
     "onclick" : async function(item, tab) {
 		showImage = false;showStyle=false;showFont=false;  //屏蔽图片  CSS和font
-		
+		if(db == undefined){  // database table operate just need once
+			db = new Dexie("products_database");
+			db.version(1).stores({
+				productList: '++,asin,title,url,image,rating,reviewUrl,totalReviews,price,originalPrice,fromUrl,keywords,page,ReviewsDetail'
+			});
+		}
 		asinList = [];//任务开始前,清空一下
 		//Stage1. 获取第一页 第二页 第三页..... 的url    
 		let currentTabid = await new Promise((resolve,reject)=>{ //Stage1.1 获取tabid  
@@ -146,10 +150,7 @@ chrome.contextMenus.create({
 							reject("没有抓取到数据");
 				
 						/*data operate start*/   //对爬取到的所有结果进行处理,放入storage中
-						var db = new Dexie("products_database");
-						db.version(1).stores({
-							productList: '++,asin,title,url,image,rating,reviewUrl,totalReviews,price,originalPrice,fromUrl,keywords,page,ReviewsDetail'
-						});
+
 						db.productList.bulkPut(data[0]/*,['asin']*/).then (
 							()=>{console.log("data save end");}
 						).catch(function(error) {
