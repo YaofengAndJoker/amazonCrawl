@@ -78,9 +78,10 @@ var resultList = [];
 var asinList = [];
 var db =undefined;
 
+
 chrome.contextMenus.create({
-    "title": "爬取商品列表和商品评论",
-    "contexts": ["page"],
+    "title": "获取商品列表和商品评论",
+    "contexts": ["page","all"],
     documentUrlPatterns: [
         "*://*.amazon.com/*","*://*.amazon.cn/*","*://*.amazon.ca/*","*://*.amazon.in/*","*://*.amazon.co.uk/*","*://*.amazon.com.au/*","*://*.amazon.de/*","*://*.amazon.fr/*","*://*.amazon.it/*","*://*.amazon.es/*"
     ],
@@ -89,7 +90,8 @@ chrome.contextMenus.create({
 		if(db == undefined){  // database table operate just need once
 			db = new Dexie("products_database");
 			db.version(1).stores({
-				productList: '++,asin,title,url,image,rating,reviewUrl,totalReviews,price,originalPrice,fromUrl,keywords,page,ReviewsDetail'
+				productList: '++,asin,title,url,image,rating,reviewUrl,totalReviews,price,originalPrice,fromUrl,keywords,page,ReviewsDetail',
+				reviews:'date,star,content'
 			});
 		}
 		asinList = [];//任务开始前,清空一下
@@ -144,21 +146,16 @@ chrome.contextMenus.create({
 			for(let item of tasked){
 				promiseList.push(new Promise((resolve,reject)=>{
 					chrome.tabs.executeScript(item, {code:"giveResult()"/*,runAt:"document_end"*/}, async (data)=>{
-						//for debug code
-							//console.dir(data);
+						//console.dir(data);
 						if(data[0]==undefined)
 							reject("没有抓取到数据");
-				
-						/*data operate start*/   //对爬取到的所有结果进行处理,放入storage中
-
+			
 						db.productList.bulkPut(data[0]/*,['asin']*/).then (
 							()=>{console.log("data save end");}
 						).catch(function(error) {
-						   alert ("Ooops: " + error);
+						   console.error("Ooops: " + error);
 						});
-						/*data operate end*/
 						resolve(data);
-						
 					});  //end of executeScript
 				}) );// end of push
 			}
@@ -184,6 +181,36 @@ chrome.contextMenus.create({
 		});
     }
 });
+chrome.contextMenus.create({
+	"title":"删除之前获取的数据",
+	"contexts":["page","all"],
+	documentUrlPatterns: [
+        "*://*.amazon.com/*","*://*.amazon.cn/*","*://*.amazon.ca/*","*://*.amazon.in/*","*://*.amazon.co.uk/*","*://*.amazon.com.au/*","*://*.amazon.de/*","*://*.amazon.fr/*","*://*.amazon.it/*","*://*.amazon.es/*"
+	],
+	"onclick":function () {
+		if(db == undefined){  // database table operate just need once
+			db = new Dexie("products_database");
+			db.version(1).stores({
+				productList: '++,asin,title,url,image,rating,reviewUrl,totalReviews,price,originalPrice,fromUrl,keywords,page,ReviewsDetail',
+				reviews:'date,star,content'
+			});
+		}
+		try {
+			db.productList.clear();  // after download dataset,also need clear table datas?
+			db.reviews.clear();
+		} catch (error) {
+			console.log("data clear failed");	
+		}
+		chrome.notifications.create(null, {
+			type: 'basic',   // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/Notifications/TemplateType
+			iconUrl: 'img/icon.png',
+			title: 'Amazon data scraper状态',
+			message: '已清除旧数据' 	
+		});
+	}
+	
+});
+/*
 //-------------------- badge演示 ------------------------//
 (function()
 {
@@ -209,7 +236,7 @@ chrome.contextMenus.create({
 		}
 	});
 })();
-
+*/
 // 监听来自content-script的消息
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse)
 {

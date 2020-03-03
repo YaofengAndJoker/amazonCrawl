@@ -77,7 +77,7 @@ function initCustomPanel()
 		</div>
 	`;*/
 	panel.innerHTML = `
-		<h2>数据获取状态</h2>
+		<h2>Amazon Data scraper状态</h2>
 		<div id="my_custom_log">
 		<p id="get_data_process">数据获取未开始!</p>
 		</div>
