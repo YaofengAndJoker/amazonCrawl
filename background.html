@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>背景页</title>
+	<meta charset="utf-8"/>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<style>
+	html,body{height: 100%;font-size: 16px;}
+	body{font-family: 'Microsoft Yahei';margin:0;padding:0;}
+	.container {
+		width: 1024px;
+		margin: 0 auto;
+	}
+	
+	.search_key {
+		width: 500px;
+    	height: 35px;
+	}
+	.search_key1 {
+		width: 800px;
+    	height: 35px;
+	}
+	.search_btn {
+		background-color: #febd69;
+	    width: 166px;
+	    height: 36px;
+	}
+	</style>
+</head>
+<body>
+	<div class="container">
+		<h1>这是背景页</h1>
+		<div>
+			<p>
+				<input type="text" class="search_key1" id="topUrl" placeholder="请输入top1-50的列表url" value="https://www.amazon.in/gp/bestsellers/luggage/2917475031/ref=pd_zg_hrsr_luggage"/>
+			</p>
+			<p>
+				<input type="button" class="search_btn" value="根据top50分析关键字" id="findTop50Keywords"/>
+			</p>
+			
+			<p>
+				<input type="text" class="search_key" name="keywords" id="key1" placeholder="请输入关键字1"/>
+			</p>
+			<p>
+				<input type="text" class="search_key" name="keywords" id="key2" placeholder="请输入关键字2"/>
+			</p>
+			<p>
+				<input type="text" class="search_key" name="keywords" id="key3" placeholder="请输入关键字3"/>
+			</p>
+			<p>
+				<input type="text" class="search_key" name="keywords" id="key4" placeholder="请输入关键字4"/>
+			</p>
+			<p>
+				<input type="text" class="search_key" name="keywords" id="key5" placeholder="请输入关键字5"/>
+			</p>
+			<p>
+				<select id="origin" class="search_key">
+            		<option value="">请选择亚马逊站点</option>
+            		<option value="in">印度</option>
+            		<option value="com">美国</option>
+            		<option value="jp">日本</option>
+            	</select>
+			</p>
+			<p>
+				<input type="button" class="search_btn" value="采集top3页asin" id="addAsinKeywords"/>
+			</p>
+			<p>
+				<input type="button" class="search_btn" value="获取所有review明细" id="single_asin"/>
+			</p>
+			<a href="#" id="get_popup_title">获取popup页标题</a>
+		</div>
+		
+		<div id="amzData">xxx</div>
+		<div id="amzData2"></div>
+	</div>
+	<script type="text/javascript" src="js/util/querystring.js"></script>
+	<script type="text/javascript" src="js/util/createSearchUrl.js"></script>
+	<script type="text/javascript" src="js/extractors/extractSearchResultPage.js"></script>
+	<script type="text/javascript" src="js/jquery-1.8.3.js"></script>
+	<script type="text/javascript" src="js/dexie.min.js"></script>
+	<script type="text/javascript" src="js/background.js"></script>
+</body>
+</html>
