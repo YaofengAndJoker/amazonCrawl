@@ -77,104 +77,118 @@ function awaitPageLoading(){
 
 var asinList = [];
 var db =undefined;
+function createTask(name,getURL,urls,extractor,table_name) {
+	this.name = name;
+	this.getURL = getURL;
+    this.urls = urls;
+    this.extractor = extractor;
+    this.table_name = table_name;
+}
 
+async function core_control(task) {
+	task.urls = [];
+	var newTabsId = [];
+	showImage = false;showStyle=false;showFont=false;  //屏蔽图片  CSS和font
+	dbinit();
+	asinList = [];//任务开始前,清空一下
+	//Stage1. 获取第一页 第二页 第三页..... 的url    
+	let currentTabid = await new Promise((resolve,reject)=>{ //Stage1.1 获取tabid  
+		chrome.tabs.query({active: true, currentWindow: true},(tabs)=>{
+			resolve(tabs[0].id);
+		})
+	});   
+	
+	chrome.tabs.sendMessage(currentTabid, {cmd:'update_process',value:'数据获取开始'}, function(response){console.log(response);});
+	task.urls= await new Promise((resolve,reject)=>{
+		//chrome.tabs.executeScript(currentTabid, {code:"getURLs()"/*,runAt:"document_end"*/}, (data)=>{
+		chrome.tabs.executeScript(currentTabid, {code:task.getURL/*,runAt:"document_end"*/}, (data)=>{
+			resolve(JSON.parse(data));     //
+		});
+	}); 
+	
+	//Stage2. 打开标签页,然后打开url,爬取数据
+	
+	newTabsId.length = 0; 	
+	let workerTabList =[];
+	for(let i =0;i<NUM_OF_WORKS;i++){  //打开每个标签页
+		workerTabList.push( new Promise((resolve,reject)=>{   
+				chrome.tabs.create({"active":false},(tab)=>{
+					newTabsId.push(tab.id);// newTabsId  是脚本打开的所有的标签项
+					resolve(tab.id);
+				});// end of create	
+			}) // end of promise
+		);// end of push
+	};// end of for
+	await Promise.all(workerTabList);
+		
+	let currentURLIndex = 0 ;
+	while(currentURLIndex<task.urls.length){
+		chrome.tabs.sendMessage(currentTabid, {cmd:'update_process',value:'正在获取第'+(currentURLIndex+1)+"页"+",总共"+task.urls.length+"页"}, function(response){console.log(response);});
+		tasked = [];//清空一下,认为所有tab都没有任务
+		for(let item of newTabsId){   
+			if(currentURLIndex<task.urls.length){
+				await new Promise((resolve,reject)=>{  //一个tab,分配了url
+					chrome.tabs.update(item,{url:task.urls[currentURLIndex]},(tab)=>{
+						tasked.push(tab.id);// 记录已经分配url的tab
+						resolve();
+					});
+				});
+				currentURLIndex++;
+			}
+		}
+		
+		await awaitPageLoading();  //监听onUpdated  等待页面加载完成 awaitPageLoading每次都要再承诺一次(新建一个Promise)
+		let promiseList = [];
+		for(let item of tasked){
+			promiseList.push(new Promise((resolve,reject)=>{
+				//chrome.tabs.executeScript(item, {code:"giveProductsResult()"/*,runAt:"document_end"*/}, async (data)=>{
+				chrome.tabs.executeScript(item, {code:task.extractor /*,runAt:"document_end"*/}, async (data)=>{
+					//console.dir(data);
+					if(data[0]==undefined)
+						reject("没有抓取到数据");
+		
+					db[task.table_name].bulkPut(data[0]/*,['asin']*/).then (
+						()=>{console.log("data save end");}
+					).catch(function(error) {
+					   console.error("Ooops: " + error);
+					});
+					resolve(data);
+				});  //end of executeScript
+			}) );// end of push
+		}
+		await Promise.all(promiseList).then(()=>{console.log("分配了任务的tabs任务完成")});
 
+	} // end of while
+	//爬完关闭所有的tab
+	for(const item of newTabsId){
+		chrome.tabs.remove(item);
+	}
+
+	newTabsId.length = 0;	
+	showImage = true;showStyle=true;showFont=true;  //恢复图片  CSS和font的显示
+	
+	chrome.tabs.sendMessage(currentTabid, {cmd:'update_process',value:'数据获取完成'}, function(response){console.log(response);});
+	chrome.notifications.create(null, {
+		type: 'basic',   // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/Notifications/TemplateType
+		iconUrl: 'img/icon.png',
+		title: '数据获取完成',
+		message: '所有数据已获取完成,可以下载保存了' , 
+		//buttons: [{title:'点击此处下载文件'/*,iconUrl:'icon3.png'*/}],//,{title:'按钮2的标题',iconUrl:'icon4.png'}],//https://stackoverflow.com/questions/20188792/is-there-any-way-to-insert-action-buttons-in-notification-in-google-chrome#answer-20190702
+		requireInteraction:true
+	});
+}
 chrome.contextMenus.create({
     "title": "获取商品列表和商品评论",
     "contexts": ["page","all"],
     documentUrlPatterns: [
         "*://*.amazon.com/*","*://*.amazon.cn/*","*://*.amazon.ca/*","*://*.amazon.in/*","*://*.amazon.co.uk/*","*://*.amazon.com.au/*","*://*.amazon.de/*","*://*.amazon.fr/*","*://*.amazon.it/*","*://*.amazon.es/*"
     ],
-    "onclick" : async function(item, tab) {
-		var resultList = [];
-		var newTabsId = [];
-		showImage = false;showStyle=false;showFont=false;  //屏蔽图片  CSS和font
-		dbinit();
-		asinList = [];//任务开始前,清空一下
-		//Stage1. 获取第一页 第二页 第三页..... 的url    
-		let currentTabid = await new Promise((resolve,reject)=>{ //Stage1.1 获取tabid  
-			chrome.tabs.query({active: true, currentWindow: true},(tabs)=>{
-				resolve(tabs[0].id);
-			})
-		});   
-		
-		chrome.tabs.sendMessage(currentTabid, {cmd:'update_process',value:'数据获取开始'}, function(response){console.log(response);});
-		resultList= await new Promise((resolve,reject)=>{
-			chrome.tabs.executeScript(currentTabid, {code:"getURLs()"/*,runAt:"document_end"*/}, (data)=>{
-				resolve(JSON.parse(data));
-			});
-		}); 
-		
-		//Stage2. 打开标签页,然后打开url,爬取数据
-		
-		newTabsId.length = 0; 	
-		let workerTabList =[];
-		for(let i =0;i<NUM_OF_WORKS;i++){  //打开每个标签页
-			workerTabList.push( new Promise((resolve,reject)=>{   
-					chrome.tabs.create({"active":false},(tab)=>{
-						newTabsId.push(tab.id);// newTabsId  是脚本打开的所有的标签项
-						resolve(tab.id);
-					});// end of create	
-				}) // end of promise
-			);// end of push
-		};// end of for
-		await Promise.all(workerTabList);
-			
-		let currentURLIndex = 0 ;
-		while(currentURLIndex<resultList.length){
-			chrome.tabs.sendMessage(currentTabid, {cmd:'update_process',value:'正在获取第'+(currentURLIndex+1)+"页"+",总共"+resultList.length+"页"}, function(response){console.log(response);});
-			tasked = [];//清空一下,认为所有tab都没有任务
-			for(let item of newTabsId){   
-				if(currentURLIndex<resultList.length){
-					await new Promise((resolve,reject)=>{  //一个tab,分配了url
-						chrome.tabs.update(item,{url:resultList[currentURLIndex]},(tab)=>{
-							tasked.push(tab.id);// 记录已经分配url的tab
-							resolve();
-						});
-					});
-					currentURLIndex++;
-				}
-			}
-			
-			await awaitPageLoading();  //监听onUpdated  等待页面加载完成 awaitPageLoading每次都要再承诺一次(新建一个Promise)
-			let promiseList = [];
-			for(let item of tasked){
-				promiseList.push(new Promise((resolve,reject)=>{
-					chrome.tabs.executeScript(item, {code:"giveResult()"/*,runAt:"document_end"*/}, async (data)=>{
-						//console.dir(data);
-						if(data[0]==undefined)
-							reject("没有抓取到数据");
-			
-						db.productList.bulkPut(data[0]/*,['asin']*/).then (
-							()=>{console.log("data save end");}
-						).catch(function(error) {
-						   console.error("Ooops: " + error);
-						});
-						resolve(data);
-					});  //end of executeScript
-				}) );// end of push
-			}
-			await Promise.all(promiseList).then(()=>{console.log("分配了任务的tabs任务完成")});
-
-		} // end of while
-		//爬完关闭所有的tab
-		for(const item of newTabsId){
-			chrome.tabs.remove(item);
-		}
-
-		newTabsId.length = 0;	
-		showImage = true;showStyle=true;showFont=true;  //恢复图片  CSS和font的显示
-		//更新操作进度
-		chrome.tabs.sendMessage(currentTabid, {cmd:'update_process',value:'数据获取完成'}, function(response){console.log(response);});
-		chrome.notifications.create(null, {
-			type: 'basic',   // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/Notifications/TemplateType
-			iconUrl: 'img/icon.png',
-			title: '数据获取完成',
-			message: '所有数据已获取完成,可以下载保存了' , 
-			//buttons: [{title:'点击此处下载文件'/*,iconUrl:'icon3.png'*/}],//,{title:'按钮2的标题',iconUrl:'icon4.png'}],//https://stackoverflow.com/questions/20188792/is-there-any-way-to-insert-action-buttons-in-notification-in-google-chrome#answer-20190702
-			requireInteraction:true
-		});
-    }
+    "onclick" :function (){
+		var productsTask = new createTask('productsList',"getURLs()",[],"giveProductsResult()","productList");
+		//var reviewssTask = new createTask('reviewssList',"getURLs()",[],"giveReviewsResult()","reviewsList");
+		core_control(productsTask);
+		core_control(reviewssTask);
+	}
 });
 chrome.contextMenus.create({
 	"title":"删除之前获取的数据",
@@ -243,7 +257,7 @@ function dbinit()
 		db = new Dexie("products_database");
 		db.version(1).stores({
 			productList: '++,asin,title,url,image,rating,reviewUrl,totalReviews,price,originalPrice,fromUrl,keywords,page',
-			reviews:'date,star,content'
+			reviewsList:'date,star,content'
 		});
 	}
 }

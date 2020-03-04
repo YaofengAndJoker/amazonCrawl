@@ -211,8 +211,13 @@ function getURLs(){
 	return JSON.stringify(urls);
 
 }
-function giveResult(params) {
+function giveProductsResult(params) {//商品列表页抽取
 	const { results } = extractSearchResultPage();//根据dom情况进行爬取
+
+	return results;
+}
+function giveReviewsResult(params) {//商品列表页抽取
+	const { results } = extractItemReviewPage();//根据dom情况进行爬取
 
 	return results;
 }

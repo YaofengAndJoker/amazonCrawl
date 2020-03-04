@@ -14,7 +14,14 @@ function extractItemReviewPage() {
             ? { helpfulVotes: (extracted === 'One' ? 1 : parseInt(extracted)) || 0 }
             : {};
         const withBrand = $brand !== null ? { brand: $brand.innerText } : {};
-        reviews.push(Object.assign(Object.assign({ name: $name.innerText.trim(), rating: parseFloat(/^[0-9.]+/.exec($rating.innerText)[0]), date: $date.innerText.trim(), verified: el.querySelector("[data-hook='avp-badge']") !== null, title: $reviewTitle.innerText.replace(lineBreakRegex, ' ').trim(), body: $reviewBody.innerText.replace(lineBreakRegex, ' ').trim() }, withHelpfulVotes), withBrand));
+        reviews.push(Object.assign(Object.assign({ 
+            name: $name.innerText.trim(), 
+            rating: parseFloat(/^[0-9.]+/.exec($rating.innerText)[0]), 
+            date: $date.innerText.trim(), 
+            verified: el.querySelector("[data-hook='avp-badge']") !== null, 
+            title: $reviewTitle.innerText.replace(lineBreakRegex, ' ').trim(), 
+            body: $reviewBody.innerText.replace(lineBreakRegex, ' ').trim() 
+        }, withHelpfulVotes), withBrand));
     });
     return reviews;
 }
