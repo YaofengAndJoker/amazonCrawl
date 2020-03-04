@@ -97,7 +97,7 @@ chrome.contextMenus.create({
 		asinList = [];//任务开始前,清空一下
 		//Stage1. 获取第一页 第二页 第三页..... 的url    
 		let currentTabid = await new Promise((resolve,reject)=>{ //Stage1.1 获取tabid  
-			chrome.tabs.query({active: true},(tabs)=>{
+			chrome.tabs.query({active: true, currentWindow: true},(tabs)=>{
 				resolve(tabs[0].id);
 			})
 		});   
@@ -188,14 +188,15 @@ chrome.contextMenus.create({
         "*://*.amazon.com/*","*://*.amazon.cn/*","*://*.amazon.ca/*","*://*.amazon.in/*","*://*.amazon.co.uk/*","*://*.amazon.com.au/*","*://*.amazon.de/*","*://*.amazon.fr/*","*://*.amazon.it/*","*://*.amazon.es/*"
 	],
 	"onclick":function () {
-		if(db == undefined){  // database table operate just need once
-			db = new Dexie("products_database");
-			db.version(1).stores({
-				productList: '++,asin,title,url,image,rating,reviewUrl,totalReviews,price,originalPrice,fromUrl,keywords,page,ReviewsDetail',
-				reviews:'date,star,content'
-			});
-		}
 		try {
+			if(db == undefined){  // database table operate just need once
+				db = new Dexie("products_database");
+				db.version(1).stores({
+					productList: '++,asin,title,url,image,rating,reviewUrl,totalReviews,price,originalPrice,fromUrl,keywords,page,ReviewsDetail',
+					reviews:'date,star,content'
+				});
+			}
+
 			db.productList.clear();  // after download dataset,also need clear table datas?
 			db.reviews.clear();
 		} catch (error) {
