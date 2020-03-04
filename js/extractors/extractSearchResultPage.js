@@ -56,8 +56,8 @@ function extractSearchResultPage() {
             originalPrice,
             fromUrl:location.href,
             keywords:args['k'],
-            page:args['page']==undefined? "1":args['page'], //如果没有page参数,说明是第一页
-            ReviewsDetail:[]
+            page:args['page']==undefined? "1":args['page'] //如果没有page参数,说明是第一页
+            
         });
     });
     /*DEBUG CODE*/ //console.log("extractSearchResultPage end");

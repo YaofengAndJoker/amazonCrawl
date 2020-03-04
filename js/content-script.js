@@ -71,7 +71,7 @@ function initCustomPanel()
 		<div class="btn-area">
 			<a href="javascript:sendMessageToContentScriptByPostMessage('你好，我是普通页面！')">通过postMessage发送消息给content-script</a><br>
 			<a href="javascript:sendMessageToContentScriptByEvent('你好啊！我是通过DOM事件发送的消息！')">通过DOM事件发送消息给content-script</a><br>
-			<a href="javascript:invokeContentScript('sendMessageToBackground()')">发送消息到后台或者popup</a><br>
+			<a href="javascript:invokeContentScript('sendMessageToBackground(\\\'download\\\')')">发送消息到后台或者popup</a><br>
 		</div>
 		<div id="my_custom_log">
 		</div>
@@ -80,6 +80,9 @@ function initCustomPanel()
 		<h2>Amazon Data scraper状态</h2>
 		<div id="my_custom_log">
 		<p id="get_data_process">数据获取未开始!</p>
+		<div class="btn-area">
+			<a href="javascript:invokeContentScript('sendMessageToBackground(\\\'download\\\')')">下载已获取的数据</a><br>
+		</div>
 		</div>
 	`;
 	document.body.appendChild(panel);
@@ -109,6 +112,7 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse)
 	if(request.cmd == 'update_process'){
 		var ele = document.getElementById('get_data_process');
 		ele.innerText = request.value;
+
 	}
 	else if(request.cmd == 'update_font_size') {
 		var ele = document.createElement('style');
@@ -116,15 +120,15 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse)
 		document.head.appendChild(ele);
 	}
 	else {
-		tip(JSON.stringify(request));
-		sendResponse('我收到你的消息了：'+JSON.stringify(request));
+		;//tip(JSON.stringify(request));
+		//sendResponse('我收到你的消息了：'+JSON.stringify(request));
 	}
 });
 // 主动发送消息给后台
 // 要演示此功能，请打开控制台主动执行sendMessageToBackground()
 function sendMessageToBackground(message) {
 	chrome.runtime.sendMessage({greeting: message || '你好，我是content-script呀，我主动发消息给后台！'}, function(response) {
-		tip('收到来自后台的回复：' + response);
+		;//tip('收到来自后台的回复：' + response);
 	});
 }
 

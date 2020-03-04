@@ -29,7 +29,7 @@ chrome.contextMenus.create({
 });
 */
 const NUM_OF_WORKS = 1;
-var newTabsId = [];
+
 
 /*
 	//爬完关闭所有的tab
@@ -73,8 +73,8 @@ function awaitPageLoading(){
 		chrome.tabs.onUpdated.addListener(callbackFun);
 	});
 }
-var stage = 0;
-var resultList = [];
+
+
 var asinList = [];
 var db =undefined;
 
@@ -86,14 +86,10 @@ chrome.contextMenus.create({
         "*://*.amazon.com/*","*://*.amazon.cn/*","*://*.amazon.ca/*","*://*.amazon.in/*","*://*.amazon.co.uk/*","*://*.amazon.com.au/*","*://*.amazon.de/*","*://*.amazon.fr/*","*://*.amazon.it/*","*://*.amazon.es/*"
     ],
     "onclick" : async function(item, tab) {
+		var resultList = [];
+		var newTabsId = [];
 		showImage = false;showStyle=false;showFont=false;  //屏蔽图片  CSS和font
-		if(db == undefined){  // database table operate just need once
-			db = new Dexie("products_database");
-			db.version(1).stores({
-				productList: '++,asin,title,url,image,rating,reviewUrl,totalReviews,price,originalPrice,fromUrl,keywords,page,ReviewsDetail',
-				reviews:'date,star,content'
-			});
-		}
+		dbinit();
 		asinList = [];//任务开始前,清空一下
 		//Stage1. 获取第一页 第二页 第三页..... 的url    
 		let currentTabid = await new Promise((resolve,reject)=>{ //Stage1.1 获取tabid  
@@ -101,7 +97,7 @@ chrome.contextMenus.create({
 				resolve(tabs[0].id);
 			})
 		});   
-		//更新操作进度
+		
 		chrome.tabs.sendMessage(currentTabid, {cmd:'update_process',value:'数据获取开始'}, function(response){console.log(response);});
 		resultList= await new Promise((resolve,reject)=>{
 			chrome.tabs.executeScript(currentTabid, {code:"getURLs()"/*,runAt:"document_end"*/}, (data)=>{
@@ -110,7 +106,7 @@ chrome.contextMenus.create({
 		}); 
 		
 		//Stage2. 打开标签页,然后打开url,爬取数据
-		//stage 2.1 标签页的处理
+		
 		newTabsId.length = 0; 	
 		let workerTabList =[];
 		for(let i =0;i<NUM_OF_WORKS;i++){  //打开每个标签页
@@ -126,7 +122,6 @@ chrome.contextMenus.create({
 			
 		let currentURLIndex = 0 ;
 		while(currentURLIndex<resultList.length){
-			//更新操作进度
 			chrome.tabs.sendMessage(currentTabid, {cmd:'update_process',value:'正在获取第'+(currentURLIndex+1)+"页"+",总共"+resultList.length+"页"}, function(response){console.log(response);});
 			tasked = [];//清空一下,认为所有tab都没有任务
 			for(let item of newTabsId){   
@@ -175,8 +170,8 @@ chrome.contextMenus.create({
 			type: 'basic',   // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/Notifications/TemplateType
 			iconUrl: 'img/icon.png',
 			title: '数据获取完成',
-			message: '所有数据已获取完成,可以下载保存了' ,
-			buttons: [{title:'点击此处下载文件'/*,iconUrl:'icon3.png'*/}],//,{title:'按钮2的标题',iconUrl:'icon4.png'}],
+			message: '所有数据已获取完成,可以下载保存了' , 
+			//buttons: [{title:'点击此处下载文件'/*,iconUrl:'icon3.png'*/}],//,{title:'按钮2的标题',iconUrl:'icon4.png'}],//https://stackoverflow.com/questions/20188792/is-there-any-way-to-insert-action-buttons-in-notification-in-google-chrome#answer-20190702
 			requireInteraction:true
 		});
     }
@@ -189,13 +184,7 @@ chrome.contextMenus.create({
 	],
 	"onclick":function () {
 		try {
-			if(db == undefined){  // database table operate just need once
-				db = new Dexie("products_database");
-				db.version(1).stores({
-					productList: '++,asin,title,url,image,rating,reviewUrl,totalReviews,price,originalPrice,fromUrl,keywords,page,ReviewsDetail',
-					reviews:'date,star,content'
-				});
-			}
+			dbinit();
 
 			db.productList.clear();  // after download dataset,also need clear table datas?
 			db.reviews.clear();
@@ -242,31 +231,61 @@ chrome.contextMenus.create({
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse)
 {
 	console.log('收到来自content-script的消息：');
+	if(request['greeting']== 'download'){
+		exportCSV();
+	}
 	console.log(request, sender, sendResponse);
 	sendResponse('我是后台，我已收到你的消息：' + JSON.stringify(request));
 });
+function dbinit()
+{
+	if(db == undefined){  // database table operate just need once
+		db = new Dexie("products_database");
+		db.version(1).stores({
+			productList: '++,asin,title,url,image,rating,reviewUrl,totalReviews,price,originalPrice,fromUrl,keywords,page',
+			reviews:'date,star,content'
+		});
+	}
+}
 
 
-
-function exportCSV(){//从indexedDB中导出数据到文件
+async function exportCSV(){//从indexedDB中导出数据到文件
 	// list all data in indexedDB start
 	var dataList = [];
-	var db = new Dexie("friend_database");
-	db.version(1).stores({
-		friends: 'asin,title,url,image,rating,reviewUrl,totalReviews,price,originalPrice,fromUrl,keywords,page,ReviewsDetail'
-	});
-	var coll = db.friends.toCollection();
+	dbinit();
+	var coll = db.productList.toCollection();
+	/*
 	coll.each(
 		(item)=>{
+			console.dir(item);
 			dataList.push(item);
 		}
-	);		
+	);*/
+	await new Promise(  (resolve,reject)=>{
+			coll.toArray((array)=>{
+				dataList = array;
+				resolve("已经从数据库中拿到数据");
+			});		
+		}
+	);
 	// change dataList Array to csv File  use papaparse
+	
+	let config = {
+		quotes: false, //or array of booleans
+		quoteChar: '"',
+		escapeChar: '"',
+		delimiter: ",",
+		header: true,
+		newline: "\r\n",
+		skipEmptyLines: false, //or 'greedy',
+		columns: null //or array of strings
+	}
+	var csv_content = Papa.unparse(dataList, config);
 	// list all data in indexedDB end
-	let uri = 'data:text/csv;charset=utf-8,\ufeff' + encodeURIComponent("xxx");
+	var url = "data:text/csv;charset=utf-8,%EF%BB%BF" + csv_content;
     let link = document.createElement("a");
-    link.href = uri;
-    link.download =  "json数据表.csv";
+    link.href = url;
+    link.download =  "datas.csv";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
