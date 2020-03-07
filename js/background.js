@@ -30,6 +30,7 @@ chrome.contextMenus.create({
 */
 let completeTabsId = [];  // 网页加载完成的列表
 let tabsWithTask = [];  //记录了分配的任务的tab有哪几个,到时候要催数据
+let waitURLs = [];  //记录需要等待完成状态的URL有哪些
 let db = undefined;
 
 let NUM_OF_WORKERS = 1;
@@ -43,16 +44,13 @@ let currentTabid = undefined;
 function awaitPageLoading() {
     return new Promise((resolve, reject) => {
         let callbackFun = function (id, info, tab) {
-            if (tabsWithTask.indexOf(tab.id) === -1)//只关注我们脚本创建的标签页的状态
-                return;
-            if (tab.status === 'complete' && info["status"] !== undefined)  //complte 事件会触发多次,一次info为{status:'complete'} 一次为 favIconUrl: "https://www.amazon.cn/favicon.ico",如果页面有ifame,complete次数会更多,这时候需要通过url对比来判断
-            {
-                if (completeTabsId.indexOf(tab.id) === -1)//不知道为什么,同一个标签页会触发多次的complete,这里是为了去重
-                    completeTabsId.push(tab.id);
-                if (completeTabsId.sort().toString() === tabsWithTask.sort().toString()) {
-                    chrome.tabs.onUpdated.removeListener(callbackFun);
-                    completeTabsId.length = 0;//清空
-                    resolve("页面都已经加载完毕");
+            if (tab.status === 'complete' && info["status"] !== undefined) {  //complte 事件会触发多次,一次info为{status:'complete'} 一次为 favIconUrl: "https://www.amazon.cn/favicon.ico",如果页面有ifame,complete次数会更多,这时候需要通过url对比来判断
+                let index = waitURLs.indexOf(tab.url);
+                if (index !== -1) {// find complete in waitURLS
+                    waitURLs.splice(index, 1)
+                }
+                if (waitURLs.length === 0) {
+                    resolve("awaitPageLoading complete");
                 }
             }
         };
@@ -179,6 +177,7 @@ async function main_control(task) {
         for (let tabId of newTabsId) {
             if (currentURLIndex < task.urls.length) {
                 tabsWithTask.push(tabId);
+                waitURLs.push(task.urls[currentURLIndex]);
                 PageUpdate(tabId, task.urls[currentURLIndex]);
                 currentURLIndex++;
             }
