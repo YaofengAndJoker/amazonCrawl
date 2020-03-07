@@ -184,9 +184,9 @@ async function main_control(task) {
             }
         }
         await awaitPageLoading();  //监听onUpdated  等待页面加载完成 awaitPageLoading每次都要再承诺一次(新建一个Promise)
-        let extractorDatas = await awaitTabsExeScript(tabsWithTask, task.extractor, afterGetDataFun, task.table_name);
+        let extractorDataArray = await awaitTabsExeScript(tabsWithTask, task.extractor, afterGetDataFun, task.table_name);
 
-        if (task.checkstopCondition(extractorDatas)) {
+        if (task.checkstopCondition(extractorDataArray)) {
             return;
         }
     } // end of while
