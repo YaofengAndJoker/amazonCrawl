@@ -4,9 +4,9 @@
  * reject的改变promise状态为reject的
  * 在回调中调这两个方法,可以使Promise状态变化
  * /
-//-------------------- 右键菜单演示 ------------------------//
-/*
-chrome.contextMenus.create({
+ //-------------------- 右键菜单演示 ------------------------//
+ /*
+ chrome.contextMenus.create({
 	title: "测试右键菜单",
 	onclick: function(){
 		chrome.notifications.create(null, {
@@ -28,191 +28,215 @@ chrome.contextMenus.create({
 	}
 });
 */
-const NUM_OF_WORKS = 1;
+let completeTabsId = [];  // 网页加载完成的列表
+let tabsWithTask = [];  //记录了分配的任务的tab有哪几个,到时候要催数据
+let db = undefined;
 
+let NUM_OF_WORKERS = 1;
 
-/*
-	//爬完关闭所有的tab
-	for(const item of newTabsId){
-		chrome.tabs.remove(item);
-	}
-	newTabsId.length = 0;	
-}
-*/
-// 是否显示图片
-var showImage = true;
-var showFont = true;
-var showStyle = true;
+// 是否显示图片,字体和CSS
+let showImage = true;
+let showFont = true;
+let showStyle = true;
+let currentTabid = undefined;
 
-/*chrome.storage.sync.get({showImage: true}, function(items) {
-	showImage = items.showImage;
-});
-*/
-var completeTabsId = [];
-var tasked=[];  //记录了分配的任务的tab有哪几个,到时候要催数据
-function awaitPageLoading(){
-	return new Promise((resolve,reject)=>{
-		var callbackFun = function (id,info,tab) {
-			if(tasked.indexOf(tab.id)==-1)//只关注我们脚本创建的标签页的状态
-				return ;
-			if(tab.status == 'complete' &&info["status"]!=undefined)  //complte 事件会触发多次,一次info为{status:'complete'} 一次为 favIconUrl: "https://www.amazon.cn/favicon.ico",如果页面有ifame,complete次数会更多,这时候需要通过url对比来判断
-			{	
-				/*for debug code start*/
-				//console.log("tab");console.dir(tab);console.log("info");console.dir(info);console.log("id");console.dir(id);
-				/*for debug code end */
-				if(completeTabsId.indexOf(tab.id)==-1)//不知道为什么,同一个标签页会触发多次的complete,这里是为了去重
-					completeTabsId.push(tab.id);
-				if(completeTabsId.sort().toString() == tasked.sort().toString() )
-				{
-					chrome.tabs.onUpdated.removeListener(callbackFun);
-					completeTabsId.length = 0;//清空
-					resolve("页面都已经加载完毕");
-				}
-			}
-		};
-		chrome.tabs.onUpdated.addListener(callbackFun);
-	});
+function awaitPageLoading() {
+    return new Promise((resolve, reject) => {
+        let callbackFun = function (id, info, tab) {
+            if (tabsWithTask.indexOf(tab.id) === -1)//只关注我们脚本创建的标签页的状态
+                return;
+            if (tab.status === 'complete' && info["status"] !== undefined)  //complte 事件会触发多次,一次info为{status:'complete'} 一次为 favIconUrl: "https://www.amazon.cn/favicon.ico",如果页面有ifame,complete次数会更多,这时候需要通过url对比来判断
+            {
+                if (completeTabsId.indexOf(tab.id) === -1)//不知道为什么,同一个标签页会触发多次的complete,这里是为了去重
+                    completeTabsId.push(tab.id);
+                if (completeTabsId.sort().toString() === tabsWithTask.sort().toString()) {
+                    chrome.tabs.onUpdated.removeListener(callbackFun);
+                    completeTabsId.length = 0;//清空
+                    resolve("页面都已经加载完毕");
+                }
+            }
+        };
+        chrome.tabs.onUpdated.addListener(callbackFun);
+    });
 }
 
-
-var asinList = [];
-var db =undefined;
-function createTask(name,getURL,urls,extractor,table_name) {
-	this.name = name;
-	this.getURL = getURL;
+function CreateTask(getURL, urls, extractor, table_name, checkstopCondition) {
+    this.getURL = getURL;
     this.urls = urls;
     this.extractor = extractor;
     this.table_name = table_name;
+    this.checkstopCondition = checkstopCondition;
 }
 
-async function core_control(task) {
-	task.urls = [];
-	var newTabsId = [];
-	showImage = false;showStyle=false;showFont=false;  //屏蔽图片  CSS和font
-	dbinit();
-	asinList = [];//任务开始前,清空一下
-	//Stage1. 获取第一页 第二页 第三页..... 的url    
-	let currentTabid = await new Promise((resolve,reject)=>{ //Stage1.1 获取tabid  
-		chrome.tabs.query({active: true, currentWindow: true},(tabs)=>{
-			resolve(tabs[0].id);
-		})
-	});   
-	
-	chrome.tabs.sendMessage(currentTabid, {cmd:'update_process',value:'数据获取开始'}, function(response){console.log(response);});
-	task.urls= await new Promise((resolve,reject)=>{
-		//chrome.tabs.executeScript(currentTabid, {code:"getURLs()"/*,runAt:"document_end"*/}, (data)=>{
-		chrome.tabs.executeScript(currentTabid, {code:task.getURL/*,runAt:"document_end"*/}, (data)=>{
-			resolve(JSON.parse(data));     //
-		});
-	}); 
-	
-	//Stage2. 打开标签页,然后打开url,爬取数据
-	
-	newTabsId.length = 0; 	
-	let workerTabList =[];
-	for(let i =0;i<NUM_OF_WORKS;i++){  //打开每个标签页
-		workerTabList.push( new Promise((resolve,reject)=>{   
-				chrome.tabs.create({"active":false},(tab)=>{
-					newTabsId.push(tab.id);// newTabsId  是脚本打开的所有的标签项
-					resolve(tab.id);
-				});// end of create	
-			}) // end of promise
-		);// end of push
-	};// end of for
-	await Promise.all(workerTabList);
-		
-	let currentURLIndex = 0 ;
-	while(currentURLIndex<task.urls.length){
-		chrome.tabs.sendMessage(currentTabid, {cmd:'update_process',value:'正在获取第'+(currentURLIndex+1)+"页"+",总共"+task.urls.length+"页"}, function(response){console.log(response);});
-		tasked = [];//清空一下,认为所有tab都没有任务
-		for(let item of newTabsId){   
-			if(currentURLIndex<task.urls.length){
-				await new Promise((resolve,reject)=>{  //一个tab,分配了url
-					chrome.tabs.update(item,{url:task.urls[currentURLIndex]},(tab)=>{
-						tasked.push(tab.id);// 记录已经分配url的tab
-						resolve();
-					});
-				});
-				currentURLIndex++;
-			}
-		}
-		
-		await awaitPageLoading();  //监听onUpdated  等待页面加载完成 awaitPageLoading每次都要再承诺一次(新建一个Promise)
-		let promiseList = [];
-		for(let item of tasked){
-			promiseList.push(new Promise((resolve,reject)=>{
-				//chrome.tabs.executeScript(item, {code:"giveProductsResult()"/*,runAt:"document_end"*/}, async (data)=>{
-				chrome.tabs.executeScript(item, {code:task.extractor /*,runAt:"document_end"*/}, async (data)=>{
-					//console.dir(data);
-					if(data[0]==undefined)
-						reject("没有抓取到数据");
-		
-					db[task.table_name].bulkPut(data[0]/*,['asin']*/).then (
-						()=>{console.log("data save end");}
-					).catch(function(error) {
-					   console.error("Ooops: " + error);
-					});
-					resolve(data);
-				});  //end of executeScript
-			}) );// end of push
-		}
-		await Promise.all(promiseList).then(()=>{console.log("分配了任务的tabs任务完成")});
-
-	} // end of while
-	//爬完关闭所有的tab
-	for(const item of newTabsId){
-		chrome.tabs.remove(item);
-	}
-
-	newTabsId.length = 0;	
-	showImage = true;showStyle=true;showFont=true;  //恢复图片  CSS和font的显示
-	
-	chrome.tabs.sendMessage(currentTabid, {cmd:'update_process',value:'数据获取完成'}, function(response){console.log(response);});
-	chrome.notifications.create(null, {
-		type: 'basic',   // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/Notifications/TemplateType
-		iconUrl: 'img/icon.png',
-		title: '数据获取完成',
-		message: '所有数据已获取完成,可以下载保存了' , 
-		//buttons: [{title:'点击此处下载文件'/*,iconUrl:'icon3.png'*/}],//,{title:'按钮2的标题',iconUrl:'icon4.png'}],//https://stackoverflow.com/questions/20188792/is-there-any-way-to-insert-action-buttons-in-notification-in-google-chrome#answer-20190702
-		requireInteraction:true
-	});
+function update_process(tabid, value) {
+    chrome.tabs.sendMessage(tabid, {cmd: 'update_process', value: value}, function (response) {
+        console.log(response);
+    });
 }
+
+function getCurrentTabid() {
+    return new Promise((resolve, reject) => {
+        chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+            console.log(tabs[0].id);
+            resolve(tabs[0].id);
+        })
+    });
+}
+
+function getUrls(tabid, getURL) {
+    return new Promise((resolve, reject) => {  // 根据tabid获取url列表
+        chrome.tabs.executeScript(tabid, {code: getURL/*,runAt:"document_end"*/}, (data) => {
+            resolve(JSON.parse(data));
+        });
+    });
+}
+
+function createTabs() {
+    let workerTabList = [];
+    for (let i = 0; i < NUM_OF_WORKERS; i++) {  //打开每个标签页
+        workerTabList.push(new Promise((resolve, reject) => {
+                chrome.tabs.create({"active": false}, (tab) => {
+                    resolve(tab.id);
+                });// end of create
+            }) // end of promise
+        );// end of push
+    }// end of for
+    return Promise.all(workerTabList);  // 等待所有标签页创建完成
+}
+
+function afterGetDataFun(data, table_name) {
+    //console.dir(data);
+    if (data[0] === undefined)
+        console.log("没有抓取到数据");
+
+    db[table_name].bulkPut(data[0]/*,['asin']*/).then(
+        () => {
+            console.log("data save end");
+        }
+    ).catch(function (error) {
+        console.error("Ooops: " + error);
+    });
+}
+
+function closeAllTabs(newTabsId) {
+    for (let item of newTabsId) {
+        chrome.tabs.remove(item);
+    }
+    newTabsId.length = 0;
+}
+
+function awaitTabsExeScript(tabsWithTask, extractor, afterGetDataFun, table_name) {
+    let awaitExeScript = [];
+    for (let item of tabsWithTask) {
+        awaitExeScript.push(new Promise((resolve, reject) => {
+            chrome.tabs.executeScript(item, {code: extractor /*,runAt:"document_end"*/}, async (data) => {
+                afterGetDataFun(data, table_name);
+                resolve(data);
+            });  //end of executeScript
+        }));// end of push
+    }
+    return Promise.all(awaitExeScript).then(() => {
+        console.log("分配了任务的tabs任务完成")
+    });
+}
+
+function DexieDBinit() {
+    if (db === undefined) {  // database table operate just need once
+        db = new Dexie("products_database");
+        db.version(1).stores({
+            productsList: '++,asin,title,url,image,rating,reviewUrl,totalReviews,price,originalPrice,fromUrl,keywords,page',
+            reviewsList: 'date,star,content'
+        });
+    }
+}
+
+function PageUpdate(item, url) {
+    chrome.tabs.update(item, {url: url}, (tab) => {
+    });
+}
+
+function createNotify(title, message, requireInteraction) {
+    chrome.notifications.create(null, {
+        type: 'basic',   // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/Notifications/TemplateType
+        iconUrl: 'img/icon.png',
+        title: title,
+        message: message,
+        //buttons: [{title:'点击此处下载文件'/*,iconUrl:'icon3.png'*/}],//,{title:'按钮2的标题',iconUrl:'icon4.png'}],//https://stackoverflow.com/questions/20188792/is-there-any-way-to-insert-action-buttons-in-notification-in-google-chrome#answer-20190702
+        requireInteraction: requireInteraction
+    });
+}
+
+async function main_control(task) {
+    DexieDBinit();
+    let newTabsId = await createTabs();
+    update_process(currentTabid, "数据获取开始");
+    // 依次给tabs分配任务,所有tab完成后,分配下一次任务
+    let currentURLIndex = 0;
+    while (currentURLIndex < task.urls.length) {
+        update_process(currentTabid, '正在获取第' + (currentURLIndex + 1) + "页" + ",总共" + task.urls.length + "页");
+
+        tabsWithTask = [];//清空一下,认为所有tab都没有任务
+        for (let tabId of newTabsId) {
+            if (currentURLIndex < task.urls.length) {
+                tabsWithTask.push(tabId);
+                PageUpdate(tabId, task.urls[currentURLIndex]);
+                currentURLIndex++;
+            }
+        }
+        await awaitPageLoading();  //监听onUpdated  等待页面加载完成 awaitPageLoading每次都要再承诺一次(新建一个Promise)
+        let extractorDatas = await awaitTabsExeScript(tabsWithTask, task.extractor, afterGetDataFun, task.table_name);
+
+        if (task.checkstopCondition(extractorDatas)) {
+            return;
+        }
+    } // end of while
+
+    closeAllTabs(newTabsId);
+
+    update_process(currentTabid, "数据获取完成");
+
+    createNotify('数据获取完成', '所有数据已获取完成,可以下载保存了', true);
+}
+
 chrome.contextMenus.create({
     "title": "获取商品列表和商品评论",
-    "contexts": ["page","all"],
+    "contexts": ["page", "all"],
     documentUrlPatterns: [
-        "*://*.amazon.com/*","*://*.amazon.cn/*","*://*.amazon.ca/*","*://*.amazon.in/*","*://*.amazon.co.uk/*","*://*.amazon.com.au/*","*://*.amazon.de/*","*://*.amazon.fr/*","*://*.amazon.it/*","*://*.amazon.es/*"
+        "*://*.amazon.com/*", "*://*.amazon.cn/*", "*://*.amazon.ca/*", "*://*.amazon.in/*", "*://*.amazon.co.uk/*", "*://*.amazon.com.au/*", "*://*.amazon.de/*", "*://*.amazon.fr/*", "*://*.amazon.it/*", "*://*.amazon.es/*"
     ],
-    "onclick" :function (){
-		var productsTask = new createTask('productsList',"getURLs()",[],"giveProductsResult()","productList");
-		//var reviewssTask = new createTask('reviewssList',"getURLs()",[],"giveReviewsResult()","reviewsList");
-		core_control(productsTask);
-		core_control(reviewssTask);
-	}
+    "onclick": async function () {
+        currentTabid = await getCurrentTabid();
+
+        let productsTask = new CreateTask("getProductsURLs()", [], "giveProductsResult()", "productsList", (datas) => {
+        });
+        productsTask.urls = await getUrls(currentTabid, productsTask.getURL);
+
+        //获取url列表的方式抽出来,有的URL是由前端抓的,有的是background的数据库生成的;
+
+        //var reviewssTask = new createTask('reviewssList',"getURLs()",[],"giveReviewsResult()","reviewsList");
+        showImage = showStyle = showFont = false;  //屏蔽图片  CSS和font
+        await main_control(productsTask);
+        showImage = showStyle = showFont = true;  //恢复图片  CSS和font的显示
+        //main_control(reviewssTask);
+    }
 });
 chrome.contextMenus.create({
-	"title":"删除之前获取的数据",
-	"contexts":["page","all"],
-	documentUrlPatterns: [
-        "*://*.amazon.com/*","*://*.amazon.cn/*","*://*.amazon.ca/*","*://*.amazon.in/*","*://*.amazon.co.uk/*","*://*.amazon.com.au/*","*://*.amazon.de/*","*://*.amazon.fr/*","*://*.amazon.it/*","*://*.amazon.es/*"
-	],
-	"onclick":function () {
-		try {
-			dbinit();
+    "title": "删除之前获取的数据",
+    "contexts": ["page", "all"],
+    documentUrlPatterns: [
+        "*://*.amazon.com/*", "*://*.amazon.cn/*", "*://*.amazon.ca/*", "*://*.amazon.in/*", "*://*.amazon.co.uk/*", "*://*.amazon.com.au/*", "*://*.amazon.de/*", "*://*.amazon.fr/*", "*://*.amazon.it/*", "*://*.amazon.es/*"
+    ],
+    "onclick": function () {
+        try {
+            DexieDBinit();
+            db.productsList.clear();  // after download dataset,also need clear table datas?
+            db.reviewsList.clear();
+        } catch (error) {
+            console.log("data clear failed");
+        }
+        createNotify('数据清除完成', '已清除旧数据', false);
+    }
 
-			db.productList.clear();  // after download dataset,also need clear table datas?
-			db.reviews.clear();
-		} catch (error) {
-			console.log("data clear failed");	
-		}
-		chrome.notifications.create(null, {
-			type: 'basic',   // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/Notifications/TemplateType
-			iconUrl: 'img/icon.png',
-			title: 'Amazon data scraper状态',
-			message: '已清除旧数据' 	
-		});
-	}
-	
 });
 /*
 //-------------------- badge演示 ------------------------//
@@ -242,154 +266,136 @@ chrome.contextMenus.create({
 })();
 */
 // 监听来自content-script的消息
-chrome.runtime.onMessage.addListener(function(request, sender, sendResponse)
-{
-	console.log('收到来自content-script的消息：');
-	if(request['greeting']== 'download'){
-		exportCSV();
-	}
-	console.log(request, sender, sendResponse);
-	sendResponse('我是后台，我已收到你的消息：' + JSON.stringify(request));
+chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
+    console.log('收到来自content-script的消息：');
+    if (request['greeting'] === 'download') {
+        exportCSV("productsList");
+    }
+    console.log(request, sender, sendResponse);
+    sendResponse('我是后台，我已收到你的消息：' + JSON.stringify(request));
 });
-function dbinit()
-{
-	if(db == undefined){  // database table operate just need once
-		db = new Dexie("products_database");
-		db.version(1).stores({
-			productList: '++,asin,title,url,image,rating,reviewUrl,totalReviews,price,originalPrice,fromUrl,keywords,page',
-			reviewsList:'date,star,content'
-		});
-	}
+
+
+async function exportCSV(table) {//从indexedDB中导出数据到文件
+    DexieDBinit();
+    let coll = db[table].toCollection();
+    /*
+    coll.each(
+        (item)=>{
+            console.dir(item);
+            dataList.push(item);
+        }
+    );*/
+    let dataList = await new Promise((resolve, reject) => {
+            coll.toArray((array) => {
+                resolve(array);
+            });
+        }
+    );
+
+    let config = {
+        quotes: false, //or array of booleans
+        quoteChar: '"',
+        escapeChar: '"',
+        delimiter: ",",
+        header: true,
+        newline: "\r\n",
+        skipEmptyLines: false, //or 'greedy',
+        columns: null //or array of strings
+    };
+    var csv_content = Papa.unparse(JSON.stringify(dataList), config);// change dataList Array to csv File  use papaparse
+    downloadData(csv_content);
+
 }
 
-
-async function exportCSV(){//从indexedDB中导出数据到文件
-	// list all data in indexedDB start
-	var dataList = [];
-	dbinit();
-	var coll = db.productList.toCollection();
-	/*
-	coll.each(
-		(item)=>{
-			console.dir(item);
-			dataList.push(item);
-		}
-	);*/
-	await new Promise(  (resolve,reject)=>{
-			coll.toArray((array)=>{
-				dataList = array;
-				resolve("已经从数据库中拿到数据");
-			});		
-		}
-	);
-	// change dataList Array to csv File  use papaparse
-	
-	let config = {
-		quotes: false, //or array of booleans
-		quoteChar: '"',
-		escapeChar: '"',
-		delimiter: ",",
-		header: true,
-		newline: "\r\n",
-		skipEmptyLines: false, //or 'greedy',
-		columns: null //or array of strings
-	}
-	var csv_content = Papa.unparse(dataList, config);
-	// list all data in indexedDB end
-	var url = "data:text/csv;charset=utf-8,%EF%BB%BF" + csv_content;
+function downloadData(csv_content) {
+    let url = "data:text/csv;charset=utf-8,%EF%BB%BF" + csv_content;
     let link = document.createElement("a");
     link.href = url;
-    link.download =  "datas.csv";
+    link.download = "datas.csv";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 }
 
-
-
 // 获取当前选项卡ID
-function getCurrentTabId(callback)
-{
-	chrome.tabs.query({active: true, currentWindow: true}, function(tabs)
-	{
-		if(callback) callback(tabs.length ? tabs[0].id: null);
-	});
+/*
+function getCurrentTabId(callback) {
+    chrome.tabs.query({active: true, currentWindow: true}, function (tabs) {
+        if (callback) callback(tabs.length ? tabs[0].id : null);
+    });
 }
 
 // 当前标签打开某个链接
-function openUrlCurrentTab(url)
-{
-	getCurrentTabId(tabId => {
-		chrome.tabs.update(tabId, {url: url});
-	})
+function openUrlCurrentTab(url) {
+    getCurrentTabId(tabId => {
+        chrome.tabs.update(tabId, {url: url});
+    })
 }
 
 // 新标签打开某个链接
-function openUrlNewTab(url)
-{
-	chrome.tabs.create({url: url});
+function openUrlNewTab(url) {
+    chrome.tabs.create({url: url});
 }
-
+*/
 // omnibox 演示
 chrome.omnibox.onInputChanged.addListener((text, suggest) => {
-	console.log('inputChanged: ' + text);
-	if(!text) return;
-	if(text == '美女') {
-		suggest([
-			{content: '中国' + text, description: '你要找“中国美女”吗？'},
-			{content: '日本' + text, description: '你要找“日本美女”吗？'},
-			{content: '泰国' + text, description: '你要找“泰国美女或人妖”吗？'},
-			{content: '韩国' + text, description: '你要找“韩国美女”吗？'}
-		]);
-	}
-	else if(text == '微博') {
-		suggest([
-			{content: '新浪' + text, description: '新浪' + text},
-			{content: '腾讯' + text, description: '腾讯' + text},
-			{content: '搜狐' + text, description: '搜索' + text},
-		]);
-	}
-	else {
-		suggest([
-			{content: '百度搜索 ' + text, description: '百度搜索 ' + text},
-			{content: '谷歌搜索 ' + text, description: '谷歌搜索 ' + text},
-		]);
-	}
+    console.log('inputChanged: ' + text);
+    if (!text) return;
+    if (text == '美女') {
+        suggest([
+            {content: '中国' + text, description: '你要找“中国美女”吗？'},
+            {content: '日本' + text, description: '你要找“日本美女”吗？'},
+            {content: '泰国' + text, description: '你要找“泰国美女或人妖”吗？'},
+            {content: '韩国' + text, description: '你要找“韩国美女”吗？'}
+        ]);
+    } else if (text == '微博') {
+        suggest([
+            {content: '新浪' + text, description: '新浪' + text},
+            {content: '腾讯' + text, description: '腾讯' + text},
+            {content: '搜狐' + text, description: '搜索' + text},
+        ]);
+    } else {
+        suggest([
+            {content: '百度搜索 ' + text, description: '百度搜索 ' + text},
+            {content: '谷歌搜索 ' + text, description: '谷歌搜索 ' + text},
+        ]);
+    }
 });
 
 // 当用户接收关键字建议时触发
 chrome.omnibox.onInputEntered.addListener((text) => {
     console.log('inputEntered: ' + text);
-	if(!text) return;
-	var href = '';
-    if(text.endsWith('美女')) href = 'http://image.baidu.com/search/index?tn=baiduimage&ie=utf-8&word=' + text;
-	else if(text.startsWith('百度搜索')) href = 'https://www.baidu.com/s?ie=UTF-8&wd=' + text.replace('百度搜索 ', '');
-	else if(text.startsWith('谷歌搜索')) href = 'https://www.google.com.tw/search?q=' + text.replace('谷歌搜索 ', '');
-	else href = 'https://www.baidu.com/s?ie=UTF-8&wd=' + text;
-	openUrlCurrentTab(href);
+    if (!text) return;
+    var href = '';
+    if (text.endsWith('美女')) href = 'http://image.baidu.com/search/index?tn=baiduimage&ie=utf-8&word=' + text;
+    else if (text.startsWith('百度搜索')) href = 'https://www.baidu.com/s?ie=UTF-8&wd=' + text.replace('百度搜索 ', '');
+    else if (text.startsWith('谷歌搜索')) href = 'https://www.google.com.tw/search?q=' + text.replace('谷歌搜索 ', '');
+    else href = 'https://www.baidu.com/s?ie=UTF-8&wd=' + text;
+    openUrlCurrentTab(href);
 });
 
 // 预留一个方法给popup调用
 function testBackground() {
-	alert('你好，我是background！');
+    alert('你好，我是background！');
 }
 
 
 // web请求监听，最后一个参数表示阻塞式，需单独声明权限：webRequestBlocking
 chrome.webRequest.onBeforeRequest.addListener(details => {
-	// cancel 表示取消本次请求
-	if(!showImage && details.type == 'image') return {cancel: true};  //'font', 'image', 'stylesheet'
-	if(!showFont && details.type == 'font') return {cancel: true};
-	if(!showStyle && details.type == 'stylesheet') return {cancel: true};
-	// 简单的音视频检测
-	// 大部分网站视频的type并不是media，且视频做了防下载处理，所以这里仅仅是为了演示效果，无实际意义
-	if(details.type == 'media') {
-		chrome.notifications.create(null, {
-			type: 'basic',   // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/Notifications/TemplateType
-			iconUrl: 'img/icon.png',
-			title: '检测到音视频',
-			message: '音视频地址：' + details.url,
-			//requireInteraction:true
-		});
-	}
+    // cancel 表示取消本次请求
+    if (!showImage && details.type == 'image') return {cancel: true};  //'font', 'image', 'stylesheet'
+    if (!showFont && details.type == 'font') return {cancel: true};
+    if (!showStyle && details.type == 'stylesheet') return {cancel: true};
+    // 简单的音视频检测
+    // 大部分网站视频的type并不是media，且视频做了防下载处理，所以这里仅仅是为了演示效果，无实际意义
+    if (details.type == 'media') {
+        chrome.notifications.create(null, {
+            type: 'basic',   // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/Notifications/TemplateType
+            iconUrl: 'img/icon.png',
+            title: '检测到音视频',
+            message: '音视频地址：' + details.url,
+            //requireInteraction:true
+        });
+    }
 }, {urls: ["<all_urls>"]}, ["blocking"]);
