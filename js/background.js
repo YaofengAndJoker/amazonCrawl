@@ -50,6 +50,7 @@ function awaitPageLoading() {
                     waitURLs.splice(index, 1)
                 }
                 if (waitURLs.length === 0) {
+                    chrome.tabs.onUpdated.removeListener(callbackFun);
                     resolve("awaitPageLoading complete");
                 }
             }
