@@ -1,4 +1,11 @@
 function extractItemReviewPage() {
+    const selectors = {  // copy from  extractSearResultPage
+        pagination: '.a-section.a-spacing-small.a-spacing-top-small>span',
+        resultItem: 'div[data-asin][data-index].s-result-item',
+        overview: '.a-row.a-size-small',
+        itemTitle: '.a-link-normal.a-text-normal',
+        prices: '.a-price>.a-offscreen',
+    };
     let reviews = [];
     const lineBreakRegex = /(\r?\n|\r)+/g;
     document.querySelectorAll('.review.a-section').forEach(el => {

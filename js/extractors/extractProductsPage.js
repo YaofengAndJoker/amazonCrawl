@@ -1,5 +1,5 @@
 
-function extractSearchResultPage() {
+function extractProductsPage() {
     /*DEBUG CODE*/ // console.log("extractSearchResultPage start");
     const args = getQueryStringArgs();
     

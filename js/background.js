@@ -207,17 +207,17 @@ chrome.contextMenus.create({
     "onclick": async function () {
         currentTabid = await getCurrentTabid();
 
-        let productsTask = new CreateTask("getProductsURLs()", [], "giveProductsResult()", "productsList", (datas) => {
-        });
+        let productsTask = new CreateTask("getProductsURLs()", [], "giveProductsResult()", "productsList", (datas) => {});
         productsTask.urls = await getUrls(currentTabid, productsTask.getURL);
 
         //获取url列表的方式抽出来,有的URL是由前端抓的,有的是background的数据库生成的;
 
-        //var reviewssTask = new createTask('reviewssList',"getURLs()",[],"giveReviewsResult()","reviewsList");
         showImage = showStyle = showFont = false;  //屏蔽图片  CSS和font
         await main_control(productsTask);
-        showImage = showStyle = showFont = true;  //恢复图片  CSS和font的显示
+
+        let reviewssTask = new createTask("getReviewURLs()",[],"giveReviewsResult()","reviewsList",(datas)={});
         //main_control(reviewssTask);
+        showImage = showStyle = showFont = true;  //恢复图片  CSS和font的显示
     }
 });
 chrome.contextMenus.create({

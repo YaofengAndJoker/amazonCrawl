@@ -201,7 +201,7 @@ function getProductsURLs() {
 }
 
 function giveProductsResult(params) {//商品列表页抽取
-    const {results} = extractSearchResultPage();//根据dom情况进行爬取
+    const {results} = extractProductsPage();//根据dom情况进行爬取
     return results;
 }
 
