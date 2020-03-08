@@ -28,7 +28,10 @@ chrome.contextMenus.create({
 	}
 });
 */
-let completeTabsId = [];  // 网页加载完成的列表
+let debugMode = false;
+chrome.storage.sync.get({debugMode: true}, function(items) {
+    debugMode = items.debugMode;
+});
 let tabsWithTask = [];  //记录了分配的任务的tab有哪几个,到时候要催数据
 let waitURLs = [];  //记录需要等待完成状态的URL有哪些
 let db = undefined;
@@ -40,6 +43,7 @@ let showImage = true;
 let showFont = true;
 let showStyle = true;
 let currentTabid = undefined;
+const MAX_ONE_PAGE_NUMBERS = 10;
 
 function awaitPageLoading() {
     return new Promise((resolve, reject) => {
@@ -72,7 +76,13 @@ function update_process(tabid, value) {
         console.log(response);
     });
 }
-
+function update_debug_msg(tabid,value) {
+    if(debugMode) {
+        chrome.tabs.sendMessage(tabid, {cmd: 'debug', value: value}, function (response) {
+            console.log(response);
+        });
+    }
+}
 function getCurrentTabid() {
     return new Promise((resolve, reject) => {
         chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
@@ -139,12 +149,13 @@ function awaitTabsExeScript(tabsWithTask, extractor, afterGetDataFun, table_name
     });
 }
 
-function DexieDBinit() {
+function DexieDBinit() { //https://dexie.org/docs/Version/Version.stores()
     if (db === undefined) {  // database table operate just need once
         db = new Dexie("products_database");
         db.version(1).stores({
-            productsList: '++,asin,title,url,image,rating,reviewUrl,totalReviews,price,originalPrice,fromUrl,keywords,page',
-            reviewsList: 'date,star,content'
+            productsList: '&asin,title,url,image,rating,reviewUrl,totalReviews,price,originalPrice,fromUrl,keywords,page',
+            reviewsList: '++,asin,name,rating,date,verified,title,body,votes,withHelpfulVotes,withBrand'
+            /*加一个保存进度的东西? 如何?*/
         });
     }
 }
@@ -191,15 +202,16 @@ async function main_control(task) {
         }
     } // end of while
 
-    closeAllTabs(newTabsId);
-
+    if(!debugMode) {
+        closeAllTabs(newTabsId);
+    }
     update_process(currentTabid, "数据获取完成");
 
-    createNotify('数据获取完成', '所有数据已获取完成,可以下载保存了', true);
+
 }
 
 chrome.contextMenus.create({
-    "title": "获取商品列表和商品评论",
+    "title": "获取商品列表",
     "contexts": ["page", "all"],
     documentUrlPatterns: [
         "*://*.amazon.com/*", "*://*.amazon.cn/*", "*://*.amazon.ca/*", "*://*.amazon.in/*", "*://*.amazon.co.uk/*", "*://*.amazon.com.au/*", "*://*.amazon.de/*", "*://*.amazon.fr/*", "*://*.amazon.it/*", "*://*.amazon.es/*"
@@ -207,19 +219,48 @@ chrome.contextMenus.create({
     "onclick": async function () {
         currentTabid = await getCurrentTabid();
 
-        let productsTask = new CreateTask("getProductsURLs()", [], "giveProductsResult()", "productsList", (datas) => {});
+        let productsTask = new CreateTask("getProductsURLs()", [], "giveProductsResult()", "productsList", (datas) => {
+        });
         productsTask.urls = await getUrls(currentTabid, productsTask.getURL);
-
+        update_debug_msg(currentTabid, "productsTask value:");
+        update_debug_msg(currentTabid, productsTask);
         //获取url列表的方式抽出来,有的URL是由前端抓的,有的是background的数据库生成的;
 
         showImage = showStyle = showFont = false;  //屏蔽图片  CSS和font
         await main_control(productsTask);
-
-        let reviewssTask = new createTask("getReviewURLs()",[],"giveReviewsResult()","reviewsList",(datas)={});
-        //main_control(reviewssTask);
+        createNotify('数据获取完成', '所有数据已获取完成,可以下载保存了', true);
         showImage = showStyle = showFont = true;  //恢复图片  CSS和font的显示
     }
 });
+
+chrome.contextMenus.create({
+    "title": "get reviews for asins",
+    "contexts": ["page", "all"],
+    documentUrlPatterns: [
+        "*://*.amazon.com/*", "*://*.amazon.cn/*", "*://*.amazon.ca/*", "*://*.amazon.in/*", "*://*.amazon.co.uk/*", "*://*.amazon.com.au/*", "*://*.amazon.de/*", "*://*.amazon.fr/*", "*://*.amazon.it/*", "*://*.amazon.es/*"
+    ],
+    "onclick": async function () {
+        currentTabid = await getCurrentTabid();
+        showImage = showStyle = showFont = false;  //屏蔽图片  CSS和font
+        let dataList = await getDataList("productsList");// 1. get asins
+        for (let data of dataList) { //create task for one asin
+            let asin = data['asin'];
+            if(data['totalReviews'] === 0) {  // skip no reviews asin
+                continue;
+            }
+            const totalPage = Math.ceil(data['totalReviews']/MAX_ONE_PAGE_NUMBERS);//获得reviews的数量,计算页数
+            let asinReviewsTask = new CreateTask(`getReviewURLs('${asin}',${totalPage})`, [], "giveReviewsResult()", "reviewsList", (datas) => {});
+            asinReviewsTask.urls = await getUrls(currentTabid, asinReviewsTask.getURL);
+
+            await main_control(asinReviewsTask);
+        }
+        showImage = showStyle = showFont = true;  //恢复图片  CSS和font的显示
+        createNotify('获取reviews完成', '获取reviews完成', false);
+    }
+
+});
+
+
 chrome.contextMenus.create({
     "title": "删除之前获取的数据",
     "contexts": ["page", "all"],
@@ -266,17 +307,17 @@ chrome.contextMenus.create({
 })();
 */
 // 监听来自content-script的消息
-chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
+chrome.runtime.onMessage.addListener(async function (request, sender, sendResponse) {
     console.log('收到来自content-script的消息：');
     if (request['greeting'] === 'download') {
-        exportCSV("productsList");
+        let dataList = await getDataList("productsList");
+        downloadFile(dataList);
     }
     console.log(request, sender, sendResponse);
     sendResponse('我是后台，我已收到你的消息：' + JSON.stringify(request));
 });
 
-
-async function exportCSV(table) {//从indexedDB中导出数据到文件
+function getDataList(table) {//从indexedDB中导出数据到文件
     DexieDBinit();
     let coll = db[table].toCollection();
     /*
@@ -286,13 +327,15 @@ async function exportCSV(table) {//从indexedDB中导出数据到文件
             dataList.push(item);
         }
     );*/
-    let dataList = await new Promise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
             coll.toArray((array) => {
                 resolve(array);
             });
         }
     );
+}
 
+function downloadFile(dataList) {
     let config = {
         quotes: false, //or array of booleans
         quoteChar: '"',
@@ -305,8 +348,8 @@ async function exportCSV(table) {//从indexedDB中导出数据到文件
     };
     var csv_content = Papa.unparse(JSON.stringify(dataList), config);// change dataList Array to csv File  use papaparse
     downloadData(csv_content);
-
 }
+
 
 function downloadData(csv_content) {
     let url = "data:text/csv;charset=utf-8,%EF%BB%BF" + csv_content;

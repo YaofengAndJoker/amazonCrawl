@@ -6,6 +6,11 @@ function extractItemReviewPage() {
         itemTitle: '.a-link-normal.a-text-normal',
         prices: '.a-price>.a-offscreen',
     };
+    let pathArgs = location.pathname.split('/');
+    pathArgs = pathArgs.filter((item) => {
+        return item.length !== 0
+    });
+    let asin = pathArgs[1];
     let reviews = [];
     const lineBreakRegex = /(\r?\n|\r)+/g;
     document.querySelectorAll('.review.a-section').forEach(el => {
@@ -17,18 +22,20 @@ function extractItemReviewPage() {
         const $votes = el.querySelector('.cr-vote-text');
         const $brand = el.querySelector('.product-by-line>a');
         const extracted = $votes !== null ? /^([0-9]+|One)/.exec($votes.innerText)[1] : null;
-        const withHelpfulVotes = extracted
-            ? { helpfulVotes: (extracted === 'One' ? 1 : parseInt(extracted)) || 0 }
-            : {};
-        const withBrand = $brand !== null ? { brand: $brand.innerText } : {};
-        reviews.push(Object.assign(Object.assign({ 
-            name: $name.innerText.trim(), 
-            rating: parseFloat(/^[0-9.]+/.exec($rating.innerText)[0]), 
-            date: $date.innerText.trim(), 
-            verified: el.querySelector("[data-hook='avp-badge']") !== null, 
-            title: $reviewTitle.innerText.replace(lineBreakRegex, ' ').trim(), 
-            body: $reviewBody.innerText.replace(lineBreakRegex, ' ').trim() 
-        }, withHelpfulVotes), withBrand));
+        const withHelpfulVotes = extracted ? ( (extracted === 'One' ? 1 : parseInt(extracted)) || 0) : 0;
+
+        const withBrand = $brand !== null ? ($brand.innerText) : '';
+        reviews.push({
+            asin: asin,
+            name: $name.innerText.trim(),
+            rating: parseFloat(/^[0-9.]+/.exec($rating.innerText)[0]),
+            date: $date.innerText.trim(),
+            verified: el.querySelector("[data-hook='avp-badge']") !== null,
+            title: $reviewTitle.innerText.replace(lineBreakRegex, ' ').trim(),
+            body: $reviewBody.innerText.replace(lineBreakRegex, ' ').trim(),
+            withHelpfulVotes: withHelpfulVotes,
+            withBrand: withBrand
+        });
     });
-    return reviews;
+    return {reviews};
 }

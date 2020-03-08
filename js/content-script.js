@@ -3,6 +3,8 @@
 // 注意，必须设置了run_at=document_start 此段代码才会生效
 document.addEventListener('DOMContentLoaded', function () {
     console.log("funciton start");
+    let temp = extractItemReviewPage();// for debug
+    console.log(temp);
     // 注入自定义JS
     injectCustomJs();
     // 给谷歌搜索结果的超链接增加 _target="blank"
@@ -100,16 +102,22 @@ function injectCustomJs(jsPath) {
 // 接收来自后台的消息
 chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
     console.log('收到来自 ' + (sender.tab ? "content-script(" + sender.tab.url + ")" : "popup或者background") + ' 的消息：', request);
-    if (request.cmd == 'update_process') {
-        var ele = document.getElementById('get_data_process');
+    if (request.cmd === 'update_process') {
+        let ele = document.getElementById('get_data_process');
         ele.innerText = request.value;
 
-    } else if (request.cmd == 'update_font_size') {
-        var ele = document.createElement('style');
+    } else if (request.cmd === 'update_font_size') {
+        let ele = document.createElement('style');
         ele.innerHTML = `* {font-size: ${request.size}px !important;}`;
         document.head.appendChild(ele);
-    } else {
-        ;//tip(JSON.stringify(request));
+    } else if(request.cmd === 'debug'){
+        console.log("background message: start")
+        console.dir(request.value);
+        console.log("background message: end")
+
+    }else{
+        ;// do nothing
+        //tip(JSON.stringify(request));
         //sendResponse('我收到你的消息了：'+JSON.stringify(request));
     }
 });
@@ -185,6 +193,7 @@ function tip(info) {
 }
 
 function getProductsURLs() {
+    console.log("getProductsURLs");
     let urls = [];//爬取url列表,传给background
     //https://www.amazon.cn/s?k=phone+case&__mk_zh_CN=%E4%BA%9A%E9%A9%AC%E9%80%8A%E7%BD%91%E7%AB%99&qid=1582732414&ref=sr_pg_1
     //https://www.amazon.cn/s?k=phone+case&page=2&__mk_zh_CN=%E4%BA%9A%E9%A9%AC%E9%80%8A%E7%BD%91%E7%AB%99&qid=1582732414&ref=sr_pg_2
@@ -195,17 +204,34 @@ function getProductsURLs() {
         console.log(url);
         urls.push(url.children[0].href);
     }
+    console.dir(urls);
     //将url信息发给background
     return JSON.stringify(urls);
 
 }
+function getReviewURLs(asin, totalPage = 1 ) {
+    console.log("getReviewURLs");
+    if (asin === undefined) {
+        throw new Error('asin is not defined');
+    }
+    let urlList =[];
+    for(let page=0;page<totalPage;page++) {
+        urlList.push(`https://${location.host}/product-reviews/${asin}/?pageNumber=${page}`);
+    }
+    console.dir(urlList);
+    return JSON.stringify(urlList);
+}
 
 function giveProductsResult(params) {//商品列表页抽取
+    console.log("giveProductsResult:  "+location.href);
     const {results} = extractProductsPage();//根据dom情况进行爬取
+    console.dir(results);
     return results;
 }
 
 function giveReviewsResult(params) {//商品Reviews页抽取
-    const {results} = extractItemReviewPage();//根据dom情况进行爬取
-    return results;
+    console.log("giveReviewsResult:  "+location.href);
+    let results = extractItemReviewPage();//根据dom情况进行爬取
+    console.dir(results);
+    return results['reviews'];
 }
