@@ -349,7 +349,9 @@ chrome.runtime.onMessage.addListener(async function (request, sender, sendRespon
     console.log('收到来自content-script的消息：');
     if (request['greeting'] === 'download') {
         let dataList = await getDataList("productsList");
-        downloadFile(dataList);
+        downloadFile(dataList,'productsList.csv');
+        dataList = await getDataList("reviewsList");
+        downloadFile(dataList,'reviewsList.csv');
     }
     console.log(request, sender, sendResponse);
     sendResponse('我是后台，我已收到你的消息：' + JSON.stringify(request));
@@ -373,7 +375,7 @@ function getDataList(table) {//从indexedDB中导出数据到文件
     );
 }
 
-function downloadFile(dataList) {
+function downloadFile(dataList,filename) {
     let config = {
         quotes: false, //or array of booleans
         quoteChar: '"',
@@ -385,15 +387,15 @@ function downloadFile(dataList) {
         columns: null //or array of strings
     };
     var csv_content = Papa.unparse(JSON.stringify(dataList), config);// change dataList Array to csv File  use papaparse
-    downloadData(csv_content);
+    downloadData(csv_content,filename);
 }
 
 
-function downloadData(csv_content) {
+function downloadData(csv_content,filename) {
     let url = "data:text/csv;charset=utf-8,%EF%BB%BF" + csv_content;
     let link = document.createElement("a");
     link.href = url;
-    link.download = "datas.csv";
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

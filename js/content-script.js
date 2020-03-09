@@ -2,9 +2,9 @@
 
 // 注意，必须设置了run_at=document_start 此段代码才会生效
 document.addEventListener('DOMContentLoaded', function () {
-    console.log("funciton start");
-    let temp = extractItemReviewPage();// for debug
-    console.log(temp);
+    //console.log("funciton start");
+    //let temp = extractItemReviewPage();// for debug
+    //console.log(temp);
     // 注入自定义JS
     injectCustomJs();
     // 给谷歌搜索结果的超链接增加 _target="blank"
