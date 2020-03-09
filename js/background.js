@@ -268,7 +268,7 @@ chrome.contextMenus.create({
                         return true; // false ,don't stop
                     }
                     for(let oneReview of data){
-                        let reviewYear = oneReview['date'].split('-')[0];
+                        let reviewYear = parseInt(oneReview['date'].split('-')[0]);
                         if((currentYear-reviewYear)>REVIEW_YEAR_RANGE){  // 如果是4年前的,那表示不需要抓了  // for test only get one year
                             return true;
                         }
