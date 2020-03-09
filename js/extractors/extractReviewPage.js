@@ -1,11 +1,12 @@
 function extractItemReviewPage() {
+    /*
     const selectors = {  // copy from  extractSearResultPage
         pagination: '.a-section.a-spacing-small.a-spacing-top-small>span',
         resultItem: 'div[data-asin][data-index].s-result-item',
         overview: '.a-row.a-size-small',
         itemTitle: '.a-link-normal.a-text-normal',
         prices: '.a-price>.a-offscreen',
-    };
+    };*/
     let pathArgs = location.pathname.split('/');
     pathArgs = pathArgs.filter((item) => {
         return item.length !== 0
@@ -29,7 +30,7 @@ function extractItemReviewPage() {
             asin: asin,
             name: $name.innerText.trim(),
             rating: parseFloat(/^[0-9.]+/.exec($rating.innerText)[0]),
-            date: $date.innerText.trim(),
+            date: $date.innerText.trim().replace(/[^\d]*(\d+).+(\d+).+(\d+).*/,"$1-$2-$3"),
             verified: el.querySelector("[data-hook='avp-badge']") !== null,
             title: $reviewTitle.innerText.replace(lineBreakRegex, ' ').trim(),
             body: $reviewBody.innerText.replace(lineBreakRegex, ' ').trim(),

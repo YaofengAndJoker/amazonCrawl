@@ -43,7 +43,8 @@ let showImage = true;
 let showFont = true;
 let showStyle = true;
 let currentTabid = undefined;
-const MAX_ONE_PAGE_NUMBERS = 10;
+let MAX_ONE_PAGE_NUMBERS = 10;
+let REVIEW_YEAR_RANGE =1;
 
 function awaitPageLoading() {
     return new Promise((resolve, reject) => {
@@ -63,12 +64,13 @@ function awaitPageLoading() {
     });
 }
 
-function CreateTask(getURL, urls, extractor, table_name, checkstopCondition) {
+function CreateTask(getURL, urls, extractor, table_name, checkstopCondition,checkSaveCondition) {
     this.getURL = getURL;
     this.urls = urls;
     this.extractor = extractor;
     this.table_name = table_name;
     this.checkstopCondition = checkstopCondition;
+    this.checkSaveCondition = checkSaveCondition;
 }
 
 function update_process(tabid, value) {
@@ -113,12 +115,12 @@ function createTabs() {
     return Promise.all(workerTabList);  // 等待所有标签页创建完成
 }
 
-function afterGetDataFun(data, table_name) {
+function afterGetDataFun(data, table_name,checkSaveCondition) {
     //console.dir(data);
     if (data[0] === undefined)
         console.log("没有抓取到数据");
-
-    db[table_name].bulkPut(data[0]/*,['asin']*/).then(
+    let DataSaved = checkSaveCondition(data[0]);
+    db[table_name].bulkPut(DataSaved/*,['asin']*/).then(
         () => {
             console.log("data save end");
         }
@@ -134,18 +136,18 @@ function closeAllTabs(newTabsId) {
     newTabsId.length = 0;
 }
 
-function awaitTabsExeScript(tabsWithTask, extractor, afterGetDataFun, table_name) {
+function awaitTabsExeScript(tabsWithTask, extractor, afterGetDataFun, table_name,checkSaveCondition) {
     let awaitExeScript = [];
     for (let item of tabsWithTask) {
         awaitExeScript.push(new Promise((resolve, reject) => {
             chrome.tabs.executeScript(item, {code: extractor /*,runAt:"document_end"*/}, async (data) => {
-                afterGetDataFun(data, table_name);
-                resolve(data);
+                afterGetDataFun(data, table_name,checkSaveCondition);
+                resolve(data[0]);
             });  //end of executeScript
         }));// end of push
     }
-    return Promise.all(awaitExeScript).then(() => {
-        console.log("分配了任务的tabs任务完成")
+    return Promise.all(awaitExeScript).then((datas) => {
+        return datas;
     });
 }
 
@@ -176,15 +178,18 @@ function createNotify(title, message, requireInteraction) {
     });
 }
 
-async function main_control(task) {
+async function main_control(task,processInfo=true) {
     DexieDBinit();
     let newTabsId = await createTabs();
-    update_process(currentTabid, "数据获取开始");
+    if(processInfo) {
+        update_process(currentTabid, "数据获取开始");
+    }
     // 依次给tabs分配任务,所有tab完成后,分配下一次任务
     let currentURLIndex = 0;
     while (currentURLIndex < task.urls.length) {
-        update_process(currentTabid, '正在获取第' + (currentURLIndex + 1) + "页" + ",总共" + task.urls.length + "页");
-
+        if(processInfo) {
+            update_process(currentTabid, '正在获取第' + (currentURLIndex + 1) + "页" + ",总共" + task.urls.length + "页");
+        }
         tabsWithTask = [];//清空一下,认为所有tab都没有任务
         for (let tabId of newTabsId) {
             if (currentURLIndex < task.urls.length) {
@@ -195,18 +200,21 @@ async function main_control(task) {
             }
         }
         await awaitPageLoading();  //监听onUpdated  等待页面加载完成 awaitPageLoading每次都要再承诺一次(新建一个Promise)
-        let extractorDataArray = await awaitTabsExeScript(tabsWithTask, task.extractor, afterGetDataFun, task.table_name);
-
+        let extractorDataArray = await awaitTabsExeScript(tabsWithTask, task.extractor, afterGetDataFun, task.table_name,task.checkSaveCondition);
+        update_debug_msg(currentTabid,"extractorDataArray start");
+        update_debug_msg(currentTabid,extractorDataArray);
+        update_debug_msg(currentTabid,"extractorDataArray end");
         if (task.checkstopCondition(extractorDataArray)) {
-            return;
+            break;
         }
     } // end of while
 
     if(!debugMode) {
         closeAllTabs(newTabsId);
     }
-    update_process(currentTabid, "数据获取完成");
-
+    if(processInfo) {
+        update_process(currentTabid, "数据获取完成");
+    }
 
 }
 
@@ -220,6 +228,9 @@ chrome.contextMenus.create({
         currentTabid = await getCurrentTabid();
 
         let productsTask = new CreateTask("getProductsURLs()", [], "giveProductsResult()", "productsList", (datas) => {
+            return false;
+        },(data)=>{
+            return data;  // true -save ; false - don't save
         });
         productsTask.urls = await getUrls(currentTabid, productsTask.getURL);
         update_debug_msg(currentTabid, "productsTask value:");
@@ -242,17 +253,44 @@ chrome.contextMenus.create({
     "onclick": async function () {
         currentTabid = await getCurrentTabid();
         showImage = showStyle = showFont = false;  //屏蔽图片  CSS和font
+        let currentYear = new Date().getFullYear();
         let dataList = await getDataList("productsList");// 1. get asins
+        update_process(currentTabid, "Reviews数据获取开始");
         for (let data of dataList) { //create task for one asin
             let asin = data['asin'];
             if(data['totalReviews'] === 0) {  // skip no reviews asin
                 continue;
             }
             const totalPage = Math.ceil(data['totalReviews']/MAX_ONE_PAGE_NUMBERS);//获得reviews的数量,计算页数
-            let asinReviewsTask = new CreateTask(`getReviewURLs('${asin}',${totalPage})`, [], "giveReviewsResult()", "reviewsList", (datas) => {});
+            let asinReviewsTask = new CreateTask(`getReviewURLs('${asin}',${totalPage})`, [], "giveReviewsResult()", "reviewsList", (datas) => {
+                for(let data of datas) {// 评论数组1 评论数组2
+                    if(data["length"]=== undefined ||data.length === 0){  // don't get anything ,stop this asin task
+                        return true; // false ,don't stop
+                    }
+                    for(let oneReview of data){
+                        let reviewYear = oneReview['date'].split('-')[0];
+                        if((currentYear-reviewYear)>REVIEW_YEAR_RANGE){  // 如果是4年前的,那表示不需要抓了  // for test only get one year
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            },(data)=>{
+                let result =[];
+                if(data["length"]=== undefined ||data.length === 0){  // don't get anything ,stop this asin task
+                    return []; // false ,don't save
+                }
+                for(let oneReview of data){
+                    let reviewYear = oneReview['date'].split('-')[0];
+                    if((currentYear-reviewYear)<=REVIEW_YEAR_RANGE){  // 如果是4年前的,那表示不需要抓了  // for test only get one year
+                        result.push(oneReview);
+                    }
+                }
+                return  result;
+            });
             asinReviewsTask.urls = await getUrls(currentTabid, asinReviewsTask.getURL);
-
-            await main_control(asinReviewsTask);
+            update_process(currentTabid, (dataList.indexOf(data)+1)+"/"+dataList.length);
+            await main_control(asinReviewsTask,false);
         }
         showImage = showStyle = showFont = true;  //恢复图片  CSS和font的显示
         createNotify('获取reviews完成', '获取reviews完成', false);
