@@ -295,8 +295,8 @@ chrome.contextMenus.create({
             /*if(data['totalReviews'] === 0) {  // skip no reviews asin
                 continue;
             }*/
-            const totalPage = 1;//为获得reviews的数量,只看第一页就有的
-            let asinReviewsTask = new CreateTask(`getCertainReviewURLs('${asin}',${totalPage})`, [], "getEarliestReview()", "earliestReview", (datas) => {
+            const Page = data['totalReviews']/MAX_ONE_PAGE_NUMBERS;//为获得reviews的数量,只看第一页就有的
+            let asinReviewsTask = new CreateTask(`getCertainReviewURLs('${asin}',${Page})`, [], "getEarliestReview()", "earliestReview", (datas) => {
                 return false; // don't need stop ,only one page
             },(data)=>{
                 // only get the last one ,already filter in extractor
@@ -309,7 +309,7 @@ chrome.contextMenus.create({
             await main_control(asinReviewsTask,false);
         }
         showImage = showStyle = showFont = true;  //恢复图片  CSS和font的显示
-        createNotify('修正reviews完成', '获取reviews完成', false);
+        createNotify('获取最早的reviews完成', '获取最早reviews完成', false);
     }
 });
 // 修正review的数量和星级,因为商品列表的不准,有时候代表是是亚马逊美国  评论数为0,不需要修正
