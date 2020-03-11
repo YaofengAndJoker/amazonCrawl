@@ -50,7 +50,7 @@ function extractProductsPage() {
             url: $url.href.match(`(^.+${asin}).+`)[1],
             image: el.querySelector('.s-image').src,
             rating: rating,
-            reviewUrl: `https://www.amazon.com/product-reviews/${asin}`,
+            reviewUrl: 'https://'+`${location.host}/product-reviews/${asin}`,
             totalReviews: totalReviews,
             price,
             originalPrice,

@@ -44,7 +44,7 @@ let showFont = true;
 let showStyle = true;
 let currentTabid = undefined;
 let MAX_ONE_PAGE_NUMBERS = 10;
-let REVIEW_YEAR_RANGE =1;
+let REVIEW_YEAR_RANGE =4;
 
 function awaitPageLoading() {
     return new Promise((resolve, reject) => {
@@ -156,7 +156,9 @@ function DexieDBinit() { //https://dexie.org/docs/Version/Version.stores()
         db = new Dexie("products_database");
         db.version(1).stores({
             productsList: '&asin,title,url,image,rating,reviewUrl,totalReviews,price,originalPrice,fromUrl,keywords,page',
-            reviewsList: '++,asin,name,rating,date,verified,title,body,votes,withHelpfulVotes,withBrand'
+            reviewsList: '++,asin,name,rating,date,verified,title,body,votes,withHelpfulVotes,withBrand',
+            productCorrect:'&asin,totalReviews,rating',  /*修正评论数量*/
+            earliestReview:'&asin,date'
             /*加一个保存进度的东西? 如何?*/
         });
     }
@@ -243,7 +245,78 @@ chrome.contextMenus.create({
         showImage = showStyle = showFont = true;  //恢复图片  CSS和font的显示
     }
 });
+chrome.contextMenus.create({
+    "title": "修正商品列表评论数与星级",
+    "contexts": ["page", "all"],
+    documentUrlPatterns: [
+        "*://*.amazon.com/*", "*://*.amazon.cn/*", "*://*.amazon.ca/*", "*://*.amazon.in/*", "*://*.amazon.co.uk/*", "*://*.amazon.com.au/*", "*://*.amazon.de/*", "*://*.amazon.fr/*", "*://*.amazon.it/*", "*://*.amazon.es/*"
+    ],
+    "onclick": async function () {
+        currentTabid = await getCurrentTabid();
+        showImage = showStyle = showFont = false;  //屏蔽图片  CSS和font
+        let currentYear = new Date().getFullYear();
+        let dataList = await getDataList("productsList");// 1. get asins
+        update_process(currentTabid, "Reviews数量修正开始");
+        for (let data of dataList) { //create task for one asin
+            let asin = data['asin'];
+            /*if(data['totalReviews'] === 0) {  // skip no reviews asin
+                continue;
+            }*/
+            const totalPage = 1;//为获得reviews的数量,只看第一页就有的
+            let asinReviewsTask = new CreateTask(`getReviewURLs('${asin}',${totalPage})`, [], "correctsReviewsAndStar()", "productCorrect", (datas) => {
+                return false; // don't need stop ,only one page
+            },(data)=>{
+                return data; // don't filter any data
+            });
 
+            asinReviewsTask.urls = await getUrls(currentTabid, asinReviewsTask.getURL);
+            //asinReviewsTask.urls = ["https://www.amazon.cn/product-reviews/B00HU65SEU/?pageNumber=1&sortBy=recent"];
+            update_process(currentTabid, (dataList.indexOf(data)+1)+"/"+dataList.length);
+            await main_control(asinReviewsTask,false);
+        }
+        showImage = showStyle = showFont = true;  //恢复图片  CSS和font的显示
+        createNotify('修正reviews完成', '获取reviews完成', false);
+    }
+});
+chrome.contextMenus.create({
+    "title": "获取最早的评论",
+    "contexts": ["page", "all"],
+    documentUrlPatterns: [
+        "*://*.amazon.com/*", "*://*.amazon.cn/*", "*://*.amazon.ca/*", "*://*.amazon.in/*", "*://*.amazon.co.uk/*", "*://*.amazon.com.au/*", "*://*.amazon.de/*", "*://*.amazon.fr/*", "*://*.amazon.it/*", "*://*.amazon.es/*"
+    ],
+    "onclick": async function () {
+        currentTabid = await getCurrentTabid();
+        showImage = showStyle = showFont = false;  //屏蔽图片  CSS和font
+        let currentYear = new Date().getFullYear();
+        let dataList = await getDataList("productCorrect");// 1. get asins
+        update_process(currentTabid, "Reviews数量修正开始");
+        for (let data of dataList) { //create task for one asin
+            let asin = data['asin'];
+            /*if(data['totalReviews'] === 0) {  // skip no reviews asin
+                continue;
+            }*/
+            const totalPage = 1;//为获得reviews的数量,只看第一页就有的
+            let asinReviewsTask = new CreateTask(`getCertainReviewURLs('${asin}',${totalPage})`, [], "getEarliestReview()", "earliestReview", (datas) => {
+                return false; // don't need stop ,only one page
+            },(data)=>{
+                // only get the last one ,already filter in extractor
+                return data; // don't filter any data
+            });
+
+            asinReviewsTask.urls = await getUrls(currentTabid, asinReviewsTask.getURL);
+            //asinReviewsTask.urls = ["https://www.amazon.cn/product-reviews/B00HU65SEU/?pageNumber=1&sortBy=recent"];
+            update_process(currentTabid, (dataList.indexOf(data)+1)+"/"+dataList.length);
+            await main_control(asinReviewsTask,false);
+        }
+        showImage = showStyle = showFont = true;  //恢复图片  CSS和font的显示
+        createNotify('修正reviews完成', '获取reviews完成', false);
+    }
+});
+// 修正review的数量和星级,因为商品列表的不准,有时候代表是是亚马逊美国  评论数为0,不需要修正
+// 获取最早评论时间(该任务依赖review数的正确性)     评论数为0,不需要获取
+// 获得asin的卖家信息,有可能没有  https://www.amazon.com/dp/B07QWJBVVJ/?th=1     评论数为0,不需要获取  ,这里也有品牌信息,不过评论页面也有品牌信息的
+// 获得asin的创建日期  https://www.amazon.cn/dp/B07NC189JJ/ref=cm_cr_arp_d_product_top?ie=UTF8  可能有,可能没有  评论数为0,不需要获取创建日期
+//  获得asin的品牌,在review页面就有的   已修正    评论数为0的,不需要获取品牌信息
 chrome.contextMenus.create({
     "title": "get reviews for asins",
     "contexts": ["page", "all"],
@@ -254,7 +327,7 @@ chrome.contextMenus.create({
         currentTabid = await getCurrentTabid();
         showImage = showStyle = showFont = false;  //屏蔽图片  CSS和font
         let currentYear = new Date().getFullYear();
-        let dataList = await getDataList("productsList");// 1. get asins
+        let dataList = await getDataList("productCorrect");// 1. get asins
         update_process(currentTabid, "Reviews数据获取开始");
         for (let data of dataList) { //create task for one asin
             let asin = data['asin'];
@@ -265,7 +338,7 @@ chrome.contextMenus.create({
             let asinReviewsTask = new CreateTask(`getReviewURLs('${asin}',${totalPage})`, [], "giveReviewsResult()", "reviewsList", (datas) => {
                 for(let data of datas) {// 评论数组1 评论数组2
                     if(data["length"]=== undefined ||data.length === 0){  // don't get anything ,stop this asin task
-                        return true; // false ,don't stop
+                        return true;
                     }
                     for(let oneReview of data){
                         let reviewYear = parseInt(oneReview['date'].split('-')[0]);
@@ -274,7 +347,7 @@ chrome.contextMenus.create({
                         }
                     }
                 }
-                return false;
+                return false;// false ,don't stop
             },(data)=>{
                 let result =[];
                 if(data["length"]=== undefined ||data.length === 0){  // don't get anything ,stop this asin task

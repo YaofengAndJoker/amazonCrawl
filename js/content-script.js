@@ -111,7 +111,7 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
         ele.innerHTML = `* {font-size: ${request.size}px !important;}`;
         document.head.appendChild(ele);
     } else if(request.cmd === 'debug'){
-        console.log("background message: start")
+        console.log("background message: start");
         console.dir(request.value);
         console.log("background message: end")
 
@@ -215,13 +215,25 @@ function getReviewURLs(asin, totalPage = 1 ) {
         throw new Error('asin is not defined');
     }
     let urlList =[];
-    for(let page=0;page<totalPage;page++) {
-        urlList.push(`https://${location.host}/product-reviews/${asin}/?pageNumber=${page}`);
+    for(let page=1;page<=totalPage;page++) {  // page 0 与page 1 所得的内容是一样的
+        //https://www.amazon.cn/product-reviews/B07NC189JJ/ref=cm_cr_arp_d_viewopt_srt?pageNumber=1&sortBy=recent
+        urlList.push(`https://${location.host}/product-reviews/${asin}/?pageNumber=${page}&sortBy=recent`);
     }
     console.dir(urlList);
     return JSON.stringify(urlList);
 }
+function getCertainReviewURLs(asin, Page = 1 ) {
+    console.log("getReviewURLs");
+    if (asin === undefined) {
+        throw new Error('asin is not defined');
+    }
+    let urlList =[];
+        //https://www.amazon.cn/product-reviews/B07NC189JJ/ref=cm_cr_arp_d_viewopt_srt?pageNumber=1&sortBy=recent
+    urlList.push(`https://${location.host}/product-reviews/${asin}/?pageNumber=${Page}&sortBy=recent`);
 
+    console.dir(urlList);
+    return JSON.stringify(urlList);
+}
 function giveProductsResult(params) {//商品列表页抽取
     console.log("giveProductsResult:  "+location.href);
     const {results} = extractProductsPage();//根据dom情况进行爬取
@@ -232,6 +244,18 @@ function giveProductsResult(params) {//商品列表页抽取
 function giveReviewsResult(params) {//商品Reviews页抽取
     console.log("giveReviewsResult:  "+location.href);
     let results = extractItemReviewPage();//根据dom情况进行爬取
+    console.dir(results);
+    return results['reviews'];
+}
+function correctsReviewsAndStar(){
+    console.log("giveReviewsResult:  "+location.href);
+    let results = extractReviewNumber();
+    console.dir(results);
+    return results['reviews'];
+}
+function getEarliestReview(){
+    console.log("getEarliestReview:  "+location.href);
+    let results = extractEarliestReview();
     console.dir(results);
     return results['reviews'];
 }

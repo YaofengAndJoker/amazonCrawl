@@ -1,12 +1,4 @@
-function extractItemReviewPage() {
-    /*
-    const selectors = {  // copy from  extractSearResultPage
-        pagination: '.a-section.a-spacing-small.a-spacing-top-small>span',
-        resultItem: 'div[data-asin][data-index].s-result-item',
-        overview: '.a-row.a-size-small',
-        itemTitle: '.a-link-normal.a-text-normal',
-        prices: '.a-price>.a-offscreen',
-    };*/
+function extractEarliestReview() {
     let pathArgs = location.pathname.split('/');
     pathArgs = pathArgs.filter((item) => {
         return item.length !== 0
@@ -39,5 +31,6 @@ function extractItemReviewPage() {
             withBrand: withBrand
         });
     });
+    reviews.splice(0,reviews.length-1);
     return {reviews};
 }
