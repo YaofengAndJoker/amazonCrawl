@@ -5,30 +5,11 @@ function extractEarliestReview() {
     });
     let asin = pathArgs[1];
     let reviews = [];
-    const lineBreakRegex = /(\r?\n|\r)+/g;
-    let brand = document.querySelector('.product-by-line>a');
     document.querySelectorAll('.review.a-section').forEach(el => {
-        const $name = el.querySelector('.a-profile-name');
-        const $rating = el.querySelector('.review-rating');
         const $date = el.querySelector('.review-date');
-        const $reviewTitle = el.querySelector('.review-title');
-        const $reviewBody = el.querySelector('.review-text');
-        const $votes = el.querySelector('.cr-vote-text');
-        const $brand = brand;
-        const extracted = $votes !== null ? /^([0-9]+|One)/.exec($votes.innerText)[1] : null;
-        const withHelpfulVotes = extracted ? ( (extracted === 'One' ? 1 : parseInt(extracted)) || 0) : 0;
-
-        const withBrand = $brand !== null ? ($brand.innerText) : '';
         reviews.push({
             asin: asin,
-            name: $name.innerText.trim(),
-            rating: parseFloat(/^[0-9.]+/.exec($rating.innerText)[0]),
             date: $date.innerText.trim().replace(/[^\d]*(\d+)[^\d]+(\d+)[^\d]+(\d+)[^\d]*/,"$1-$2-$3"),
-            verified: el.querySelector("[data-hook='avp-badge']") !== null,
-            title: $reviewTitle.innerText.replace(lineBreakRegex, ' ').trim(),
-            body: $reviewBody.innerText.replace(lineBreakRegex, ' ').trim(),
-            withHelpfulVotes: withHelpfulVotes,
-            withBrand: withBrand
         });
     });
     reviews.splice(0,reviews.length-1);
