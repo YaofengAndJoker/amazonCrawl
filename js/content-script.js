@@ -234,6 +234,17 @@ function getCertainReviewURLs(asin, Page = 1 ) {
     console.dir(urlList);
     return JSON.stringify(urlList);
 }
+function getAsinDetailURL(asin) {   // 要获得卖家的名字,上架时间和品牌
+    console.log("getAsinDetailURL");
+    if (asin === undefined) {
+        throw new Error('asin is not defined');
+    }
+    let urlList = [];  //https://www.amazon.cn/dp/B00DA0EAGM/
+    urlList.push(`https://${location.host}/dp/${asin}/`);
+    console.dir(urlList);
+    return JSON.stringify()
+}
+
 function giveProductsResult(params) {//商品列表页抽取
     console.log("giveProductsResult:  "+location.href);
     const {results} = extractProductsPage();//根据dom情况进行爬取

@@ -45,7 +45,19 @@ let showStyle = true;
 let currentTabid = undefined;
 let MAX_ONE_PAGE_NUMBERS = 10;
 let REVIEW_YEAR_RANGE =4;
-
+function DexieDBinit() { //https://dexie.org/docs/Version/Version.stores()
+    if (db === undefined) {  // database table operate just need once
+        db = new Dexie("products_database");
+        db.version(1).stores({
+            productsList: '&asin,title,url,image,rating,reviewUrl,totalReviews,price,originalPrice,fromUrl,keywords,page',
+            reviewsList: '++,asin,name,rating,date,verified,title,body,votes,withHelpfulVotes,withBrand',
+            productCorrect:'&asin,totalReviews,rating',  /*修正评论数量*/
+            earliestReview:'&asin,date',
+            productDetail:'&asin,brand,upDate,sellerName'
+            /*加一个保存进度的东西? 如何?*/
+        });
+    }
+}
 function awaitPageLoading() {
     return new Promise((resolve, reject) => {
         let callbackFun = function (id, info, tab) {
@@ -151,18 +163,7 @@ function awaitTabsExeScript(tabsWithTask, extractor, afterGetDataFun, table_name
     });
 }
 
-function DexieDBinit() { //https://dexie.org/docs/Version/Version.stores()
-    if (db === undefined) {  // database table operate just need once
-        db = new Dexie("products_database");
-        db.version(1).stores({
-            productsList: '&asin,title,url,image,rating,reviewUrl,totalReviews,price,originalPrice,fromUrl,keywords,page',
-            reviewsList: '++,asin,name,rating,date,verified,title,body,votes,withHelpfulVotes,withBrand',
-            productCorrect:'&asin,totalReviews,rating',  /*修正评论数量*/
-            earliestReview:'&asin,date'
-            /*加一个保存进度的东西? 如何?*/
-        });
-    }
-}
+
 
 function PageUpdate(item, url) {
     chrome.tabs.update(item, {url: url}, (tab) => {
@@ -292,10 +293,10 @@ chrome.contextMenus.create({
         update_process(currentTabid, "Reviews数量修正开始");
         for (let data of dataList) { //create task for one asin
             let asin = data['asin'];
-            /*if(data['totalReviews'] === 0) {  // skip no reviews asin
+            if(data['totalReviews'] === 0) {  // skip no reviews asin
                 continue;
-            }*/
-            const Page = data['totalReviews']/MAX_ONE_PAGE_NUMBERS;//为获得reviews的数量,只看第一页就有的
+            }
+            const Page = Math.ceil(data['totalReviews']/MAX_ONE_PAGE_NUMBERS);//为获得reviews的数量,只看第一页就有的
             let asinReviewsTask = new CreateTask(`getCertainReviewURLs('${asin}',${Page})`, [], "getEarliestReview()", "earliestReview", (datas) => {
                 return false; // don't need stop ,only one page
             },(data)=>{
