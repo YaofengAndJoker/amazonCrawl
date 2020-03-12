@@ -49,7 +49,11 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         fuckBaiduAD();
-        initCustomPanel();
+        if( location.href.indexOf('product-reviews') !== -1||location.href.indexOf('/dp/') !== -1){ // don't show panel in reviews page
+        }
+        else{
+            initCustomPanel();
+        }
         initCustomEventListen();
     }
 
@@ -223,7 +227,7 @@ function getReviewURLs(asin, totalPage = 1 ) {
     return JSON.stringify(urlList);
 }
 function getCertainReviewURLs(asin, Page = 1 ) {
-    console.log("getReviewURLs");
+    console.log("getCertainReviewURLs");
     if (asin === undefined) {
         throw new Error('asin is not defined');
     }
@@ -269,4 +273,10 @@ function getEarliestReview(){
     let results = extractEarliestReview();
     console.dir(results);
     return results['reviews'];
+}
+function givAsinDetail() {
+    console.log("givAsinDetail:  "+location.href);
+    let results = extractAsinDetail();
+    console.dir(results);
+    return results;
 }
