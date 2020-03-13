@@ -47,7 +47,7 @@ function extractProductsPage() {
         results.push({
             asin,
             title: el.querySelector('h2').innerText.trim(),
-            url: $url.href.match(`(^.+${asin}).+`)[1],
+            url: $url.href,//.match(`(^.+${asin}).+`)[1],   // url 可能并没有包含asin,可能是个redirect
             image: el.querySelector('.s-image').src,
             rating: rating,
             reviewUrl: 'https://'+`${location.host}/product-reviews/${asin}`,

@@ -219,6 +219,9 @@ function getReviewURLs(asin, totalPage = 1 ) {
         throw new Error('asin is not defined');
     }
     let urlList =[];
+    if(totalPage>500) { // 评论最多只能看5000条
+        totalPage = 500;
+    }
     for(let page=1;page<=totalPage;page++) {  // page 0 与page 1 所得的内容是一样的
         //https://www.amazon.cn/product-reviews/B07NC189JJ/ref=cm_cr_arp_d_viewopt_srt?pageNumber=1&sortBy=recent
         urlList.push(`https://${location.host}/product-reviews/${asin}/?pageNumber=${page}&sortBy=recent`);
@@ -230,6 +233,9 @@ function getCertainReviewURLs(asin, Page = 1 ) {
     console.log("getCertainReviewURLs");
     if (asin === undefined) {
         throw new Error('asin is not defined');
+    }
+    if(Page>500) { // 评论最多只能看5000条
+        Page = 500;
     }
     let urlList =[];
         //https://www.amazon.cn/product-reviews/B07NC189JJ/ref=cm_cr_arp_d_viewopt_srt?pageNumber=1&sortBy=recent
@@ -246,7 +252,7 @@ function getAsinDetailURL(asin) {   // 要获得卖家的名字,上架时间和�
     let urlList = [];  //https://www.amazon.cn/dp/B00DA0EAGM/
     urlList.push(`https://${location.host}/dp/${asin}/`);
     console.dir(urlList);
-    return JSON.stringify()
+    return JSON.stringify(urlList);
 }
 
 function giveProductsResult(params) {//商品列表页抽取

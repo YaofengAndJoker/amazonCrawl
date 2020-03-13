@@ -25,12 +25,12 @@ function extractAsinDetail() {
         sellerName = 'unknown';
     }
     let tempSets = document.querySelectorAll("#prodDetails td");
-
+    let currentYear = new Date().getFullYear();
     for(let item of tempSets) {
         let index =item.innerText.search(/\d{4}/);
         if(index!== -1) {
-            let yearString = parseInt(item.innerText.substr(index,4));
-            if(yearString>=1991) {
+            let year= parseInt(item.innerText.substr(index,4));
+            if(year>=1995&&year<=currentYear) { // amazon online at 1995
                 upDate = item.innerText;
             }
         }
@@ -43,5 +43,5 @@ function extractAsinDetail() {
         sellerName: sellerName,
     });
     /*DEBUG CODE*/ //console.log("extractSearchResultPage end");
-    return { results };
+    return results ;
 }

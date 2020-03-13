@@ -18,20 +18,28 @@ function extractItemReviewPage() {
     document.querySelectorAll('.review.a-section').forEach(el => {
         const $name = el.querySelector('.a-profile-name');
         const $rating = el.querySelector('.review-rating');
-        const $date = el.querySelector('.review-date');
+        let $date = el.querySelector('.review-date');
         const $reviewTitle = el.querySelector('.review-title');
         const $reviewBody = el.querySelector('.review-text');
         const $votes = el.querySelector('.cr-vote-text');
         const $brand = brand;
         const extracted = $votes !== null ? /^([0-9]+|One)/.exec($votes.innerText)[1] : null;
         const withHelpfulVotes = extracted ? ( (extracted === 'One' ? 1 : parseInt(extracted)) || 0) : 0;
-
+        //"Reviewed in the United States on March 11, 2020"
+        $date = $date.innerText.trim().replace(/[^\d]*(\d+)[^\d]+(\d+)[^\d]+(\d+)[^\d]*/,"$1-$2-$3")
+        if ($date.split('-').length === 3) {
+        } else {
+            //"Reviewed in the United States on April 16, 2019".replace(/Reviewed in the United States on /,"")
+            $date = $date.replace(/Reviewed in the United States on /, "");
+            var temp = new Date(Date.parse($date));
+            $date = `${temp.getFullYear()}-${temp.getMonth()+1}-${temp.getDate()}`;
+        }
         const withBrand = $brand !== null ? ($brand.innerText) : '';
         reviews.push({
             asin: asin,
             name: $name.innerText.trim(),
             rating: parseFloat(/^[0-9.]+/.exec($rating.innerText)[0]),
-            date: $date.innerText.trim().replace(/[^\d]*(\d+)[^\d]+(\d+)[^\d]+(\d+)[^\d]*/,"$1-$2-$3"),
+            date: $date,
             verified: el.querySelector("[data-hook='avp-badge']") !== null,
             title: $reviewTitle.innerText.replace(lineBreakRegex, ' ').trim(),
             body: $reviewBody.innerText.replace(lineBreakRegex, ' ').trim(),

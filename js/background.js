@@ -29,14 +29,15 @@ chrome.contextMenus.create({
 });
 */
 let debugMode = false;
+/*
 chrome.storage.sync.get({debugMode: true}, function (items) {
     debugMode = items.debugMode;
-});
+});*/
 let tabsWithTask = [];  //记录了分配的任务的tab有哪几个,到时候要催数据
-let waitURLs = [];  //记录需要等待完成状态的URL有哪些
+let waitTabs = [];  //记录需要等待完成状态的URL有哪些
 let db = undefined;
 
-let NUM_OF_WORKERS = 1;
+let NUM_OF_WORKERS = 4;
 
 // 是否显示图片,字体和CSS
 let showImage = true;
@@ -71,25 +72,6 @@ function clearDB() {
         console.log("data clear failed");
     }
 }
-
-function awaitPageLoading() {
-    return new Promise((resolve, reject) => {
-        let callbackFun = function (id, info, tab) {
-            if (tab.status === 'complete' && info["status"] !== undefined) {  //complte 事件会触发多次,一次info为{status:'complete'} 一次为 favIconUrl: "https://www.amazon.cn/favicon.ico",如果页面有ifame,complete次数会更多,这时候需要通过url对比来判断
-                let index = waitURLs.indexOf(tab.url);
-                if (index !== -1) {// find complete in waitURLS
-                    waitURLs.splice(index, 1)
-                }
-                if (waitURLs.length === 0) {
-                    chrome.tabs.onUpdated.removeListener(callbackFun);
-                    resolve("awaitPageLoading complete");
-                }
-            }
-        };
-        chrome.tabs.onUpdated.addListener(callbackFun);
-    });
-}
-
 function CreateTask(getURL, urls, extractor, table_name, checkstopCondition, checkSaveCondition) {
     this.getURL = getURL;
     this.urls = urls;
@@ -97,6 +79,24 @@ function CreateTask(getURL, urls, extractor, table_name, checkstopCondition, che
     this.table_name = table_name;
     this.checkstopCondition = checkstopCondition;
     this.checkSaveCondition = checkSaveCondition;
+}
+
+function awaitPageLoading() {
+    return new Promise((resolve, reject) => {     // 页面可能有重定向,location.href可能被脚本改变,不再看url,而是看tab.id
+        let callbackFun = function (id, info, tab) {
+            if (tab.status === 'complete' && info["status"] !== undefined) {  //complte 事件会触发多次,一次info为{status:'complete'} 一次为 favIconUrl: "https://www.amazon.cn/favicon.ico",如果页面有ifame,complete次数会更多,这时候需要通过url对比来判断
+                let index = waitTabs.indexOf(tab.id);
+                if (index !== -1) {// find complete in waitURLS
+                    waitTabs.splice(index, 1)
+                }
+                if (waitTabs.length === 0) {
+                    chrome.tabs.onUpdated.removeListener(callbackFun);
+                    resolve("awaitPageLoading complete");
+                }
+            }
+        };
+        chrome.tabs.onUpdated.addListener(callbackFun);
+    });
 }
 
 function update_process(tabid, value) {
@@ -212,7 +212,7 @@ async function main_control(task, processInfo = true) {
         for (let tabId of newTabsId) {
             if (currentURLIndex < task.urls.length) {
                 tabsWithTask.push(tabId);
-                waitURLs.push(task.urls[currentURLIndex]);
+                waitTabs.push(tabId);
                 PageUpdate(tabId, task.urls[currentURLIndex]);
                 currentURLIndex++;
             }
@@ -248,7 +248,7 @@ chrome.contextMenus.create({
         let productsTask = new CreateTask("getProductsURLs()", [], "giveProductsResult()", "productsList", (datas) => {
             return false;
         }, (data) => {
-            return data;  // true -save ; false - don't save
+            return data;  // filter data
         });
         productsTask.urls = await getUrls(currentTabid, productsTask.getURL);
         update_debug_msg(currentTabid, "productsTask value:");
