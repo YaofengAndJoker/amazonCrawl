@@ -72,6 +72,7 @@ function clearDB() {
         console.log("data clear failed");
     }
 }
+
 function CreateTask(getURL, urls, extractor, table_name, checkstopCondition, checkSaveCondition) {
     this.getURL = getURL;
     this.urls = urls;
@@ -79,6 +80,14 @@ function CreateTask(getURL, urls, extractor, table_name, checkstopCondition, che
     this.table_name = table_name;
     this.checkstopCondition = checkstopCondition;
     this.checkSaveCondition = checkSaveCondition;
+}
+
+function getUrls(tabid, getURL) {
+    return new Promise((resolve, reject) => {  // 根据tabid获取url列表
+        chrome.tabs.executeScript(tabid, {code: getURL/*,runAt:"document_end"*/}, (data) => {
+            resolve(JSON.parse(data));
+        });
+    });
 }
 
 function awaitPageLoading() {
@@ -96,6 +105,35 @@ function awaitPageLoading() {
             }
         };
         chrome.tabs.onUpdated.addListener(callbackFun);
+    });
+}
+
+function afterGetDataFun(data, table_name, checkSaveCondition) {
+    //console.dir(data);
+    if (data[0] === undefined)
+        console.log("没有抓取到数据");
+    let DataSaved = checkSaveCondition(data[0]);
+    db[table_name].bulkPut(DataSaved/*,['asin']*/).then(
+        () => {
+            console.log("data save end");
+        }
+    ).catch(function (error) {
+        console.error("Ooops: " + error);
+    });
+}
+
+function awaitTabsExeScript(tabsWithTask, extractor, afterGetDataFun, table_name, checkSaveCondition) {
+    let awaitExeScript = [];
+    for (let item of tabsWithTask) {
+        awaitExeScript.push(new Promise((resolve, reject) => {
+            chrome.tabs.executeScript(item, {code: extractor /*,runAt:"document_end"*/}, async (data) => {
+                afterGetDataFun(data, table_name, checkSaveCondition);
+                resolve(data[0]);
+            });  //end of executeScript
+        }));// end of push
+    }
+    return Promise.all(awaitExeScript).then((datas) => {
+        return datas;
     });
 }
 
@@ -122,14 +160,6 @@ function getCurrentTabid() {
     });
 }
 
-function getUrls(tabid, getURL) {
-    return new Promise((resolve, reject) => {  // 根据tabid获取url列表
-        chrome.tabs.executeScript(tabid, {code: getURL/*,runAt:"document_end"*/}, (data) => {
-            resolve(JSON.parse(data));
-        });
-    });
-}
-
 function createTabs() {
     let workerTabList = [];
     for (let i = 0; i < NUM_OF_WORKERS; i++) {  //打开每个标签页
@@ -143,42 +173,12 @@ function createTabs() {
     return Promise.all(workerTabList);  // 等待所有标签页创建完成
 }
 
-function afterGetDataFun(data, table_name, checkSaveCondition) {
-    //console.dir(data);
-    if (data[0] === undefined)
-        console.log("没有抓取到数据");
-    let DataSaved = checkSaveCondition(data[0]);
-    db[table_name].bulkPut(DataSaved/*,['asin']*/).then(
-        () => {
-            console.log("data save end");
-        }
-    ).catch(function (error) {
-        console.error("Ooops: " + error);
-    });
-}
-
 function closeAllTabs(newTabsId) {
     for (let item of newTabsId) {
         chrome.tabs.remove(item);
     }
     newTabsId.length = 0;
 }
-
-function awaitTabsExeScript(tabsWithTask, extractor, afterGetDataFun, table_name, checkSaveCondition) {
-    let awaitExeScript = [];
-    for (let item of tabsWithTask) {
-        awaitExeScript.push(new Promise((resolve, reject) => {
-            chrome.tabs.executeScript(item, {code: extractor /*,runAt:"document_end"*/}, async (data) => {
-                afterGetDataFun(data, table_name, checkSaveCondition);
-                resolve(data[0]);
-            });  //end of executeScript
-        }));// end of push
-    }
-    return Promise.all(awaitExeScript).then((datas) => {
-        return datas;
-    });
-}
-
 
 function PageUpdate(item, url) {
     chrome.tabs.update(item, {url: url}, (tab) => {
@@ -293,7 +293,7 @@ chrome.contextMenus.create({
     }
 });
 chrome.contextMenus.create({
-    "title": "修正商品列表评论数与星级",
+    "title": "修正商品列表评论数",
     "contexts": ["page", "all"],
     documentUrlPatterns: [
         "*://*.amazon.com/*", "*://*.amazon.cn/*", "*://*.amazon.ca/*", "*://*.amazon.in/*", "*://*.amazon.co.uk/*", "*://*.amazon.com.au/*", "*://*.amazon.de/*", "*://*.amazon.fr/*", "*://*.amazon.it/*", "*://*.amazon.es/*"
@@ -460,13 +460,22 @@ chrome.contextMenus.create({
 chrome.runtime.onMessage.addListener(async function (request, sender, sendResponse) {
     console.log('收到来自content-script的消息：');
     if (request['greeting'] === 'download') {
-        let dataList = await getDataList("productsList");
-        downloadFile(dataList, 'productsList.csv');
+        let stringDate = new Date();
+        stringDate = `${stringDate.getFullYear()}/${stringDate.getMonth()+1}/${stringDate.getDate()}`
+        let dataList = await `getDataList`("productsList");
+        downloadFile(dataList, `productsList-${stringDate}.csv`);
         dataList = await getDataList("reviewsList");
-        downloadFile(dataList, 'reviewsList.csv');
+        downloadFile(dataList, `reviewsList-${stringDate}.csv`);
+        dataList = await getDataList("productCorrect");
+        downloadFile(dataList, `productCorrect-${stringDate}.csv`);
+        dataList = await getDataList("earliestReview");
+        downloadFile(dataList, `earliestReview-${stringDate}.csv`);
+        dataList = await getDataList("productDetail");
+        downloadFile(dataList, `productDetail-${stringDate}.csv`);
     }
-    console.log(request, sender, sendResponse);
-    sendResponse('我是后台，我已收到你的消息：' + JSON.stringify(request));
+
+    //console.log(request, sender, sendResponse);
+    //sendResponse('我是后台，我已收到你的消息：' + JSON.stringify(request));
 });
 
 function getDataList(table) {//从indexedDB中导出数据到文件
@@ -533,6 +542,7 @@ function openUrlNewTab(url) {
     chrome.tabs.create({url: url});
 }
 */
+/*
 // omnibox 演示
 chrome.omnibox.onInputChanged.addListener((text, suggest) => {
     console.log('inputChanged: ' + text);
@@ -557,7 +567,8 @@ chrome.omnibox.onInputChanged.addListener((text, suggest) => {
         ]);
     }
 });
-
+*/
+/*
 // 当用户接收关键字建议时触发
 chrome.omnibox.onInputEntered.addListener((text) => {
     console.log('inputEntered: ' + text);
@@ -569,7 +580,7 @@ chrome.omnibox.onInputEntered.addListener((text) => {
     else href = 'https://www.baidu.com/s?ie=UTF-8&wd=' + text;
     openUrlCurrentTab(href);
 });
-
+*/
 // 预留一个方法给popup调用
 function testBackground() {
     alert('你好，我是background！');
@@ -582,6 +593,7 @@ chrome.webRequest.onBeforeRequest.addListener(details => {
     if (!showImage && details.type == 'image') return {cancel: true};  //'font', 'image', 'stylesheet'
     if (!showFont && details.type == 'font') return {cancel: true};
     if (!showStyle && details.type == 'stylesheet') return {cancel: true};
+    /*
     // 简单的音视频检测
     // 大部分网站视频的type并不是media，且视频做了防下载处理，所以这里仅仅是为了演示效果，无实际意义
     if (details.type == 'media') {
@@ -592,5 +604,5 @@ chrome.webRequest.onBeforeRequest.addListener(details => {
             message: '音视频地址：' + details.url,
             //requireInteraction:true
         });
-    }
+    }*/
 }, {urls: ["<all_urls>"]}, ["blocking"]);
