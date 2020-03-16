@@ -55,7 +55,7 @@ function extractProductsPage() {
             price,
             originalPrice,
             fromUrl:location.href,
-            keywords:args['k'],
+            keywords:args['k'].replace("+"," "),
             page:args['page']==undefined? "1":args['page'] //如果没有page参数,说明是第一页
             
         });

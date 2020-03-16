@@ -110,6 +110,9 @@ function awaitPageLoading() {
 
 function afterGetDataFun(data, table_name, checkSaveCondition) {
     //console.dir(data);
+    if(data === undefined) { // 可能有一个页面加载超时了,得到是不是空数组,而是undefined
+        throw new Error("didn't get any data");
+    }
     if (data[0] === undefined)
         console.log("没有抓取到数据");
     let DataSaved = checkSaveCondition(data[0]);
@@ -218,10 +221,23 @@ async function main_control(task, processInfo = true) {
             }
         }
         await awaitPageLoading();  //监听onUpdated  等待页面加载完成 awaitPageLoading每次都要再承诺一次(新建一个Promise)
-        let extractorDataArray = await awaitTabsExeScript(tabsWithTask, task.extractor, afterGetDataFun, task.table_name, task.checkSaveCondition);
-        update_debug_msg(currentTabid, "extractorDataArray start");
-        update_debug_msg(currentTabid, extractorDataArray);
-        update_debug_msg(currentTabid, "extractorDataArray end");
+        try {
+            let extractorDataArray = await awaitTabsExeScript(tabsWithTask, task.extractor, afterGetDataFun, task.table_name, task.checkSaveCondition);
+            update_debug_msg(currentTabid, "extractorDataArray start");
+            update_debug_msg(currentTabid, extractorDataArray);
+            update_debug_msg(currentTabid, "extractorDataArray end");
+        }
+        catch (e) {  // if get data error ,then reload all tab ,redo flow
+            /*
+            waitTabs=[];
+            for(let tabid of tabsWithTask){
+                chrome.tabs.reload(tabid);
+                waitTabs.push(tabid);
+            }*/
+            waitTabs=[];
+            currentURLIndex = currentURLIndex - tabsWithTask.length; // forget this tasks,redo it
+            continue ;
+        }
         if (task.checkstopCondition(extractorDataArray)) {
             break;
         }
@@ -272,22 +288,21 @@ chrome.contextMenus.create({
         showImage = showStyle = showFont = false;  //屏蔽图片  CSS和font
         let dataList = await getDataList("productsList");// 1. get asins
         update_process(currentTabid, "获取商品详情页开始");
+        let asinReviewsTask = new CreateTask(``, [], "givAsinDetail()", "productDetail", (datas) => {
+            return false; // don't need stop ,only one page
+        }, (data) => {
+            return data; // don't filter any data
+        });
         for (let data of dataList) { //create task for one asin
             let asin = data['asin'];
             /*if(data['totalReviews'] === 0) {  // skip no reviews asin
                 continue;
             }*/
-            let asinReviewsTask = new CreateTask(`getAsinDetailURL('${asin}')`, [], "givAsinDetail()", "productDetail", (datas) => {
-                return false; // don't need stop ,only one page
-            }, (data) => {
-                return data; // don't filter any data
-            });
-
-            asinReviewsTask.urls = await getUrls(currentTabid, asinReviewsTask.getURL);
+            asinReviewsTask.urls.concat( await getUrls(currentTabid, `getAsinDetailURL('${asin}')` ));
             //asinReviewsTask.urls = ["https://www.amazon.cn/product-reviews/B00HU65SEU/?pageNumber=1&sortBy=recent"];
             update_process(currentTabid, (dataList.indexOf(data) + 1) + "/" + dataList.length);
-            await main_control(asinReviewsTask, false);
         }
+        await main_control(asinReviewsTask);
         showImage = showStyle = showFont = true;  //恢复图片  CSS和font的显示
         createNotify('获取商品详情页 完成', '获取商品详情页完成', false);
     }
@@ -303,23 +318,25 @@ chrome.contextMenus.create({
         showImage = showStyle = showFont = false;  //屏蔽图片  CSS和font
         let dataList = await getDataList("productsList");// 1. get asins
         update_process(currentTabid, "Reviews数量修正开始");
+        let asinReviewsTask = new CreateTask(``, [], "correctsReviewsAndStar()", "productCorrect", (datas) => {
+            return false; // don't need stop ,only one page
+        }, (data) => {
+            return data; // don't filter any data
+        });
         for (let data of dataList) { //create task for one asin
             let asin = data['asin'];
             /*if(data['totalReviews'] === 0) {  // skip no reviews asin
                 continue;
             }*/
             const totalPage = 1;//为获得reviews的数量,只看第一页就有的
-            let asinReviewsTask = new CreateTask(`getReviewURLs('${asin}',${totalPage})`, [], "correctsReviewsAndStar()", "productCorrect", (datas) => {
-                return false; // don't need stop ,only one page
-            }, (data) => {
-                return data; // don't filter any data
-            });
 
-            asinReviewsTask.urls = await getUrls(currentTabid, asinReviewsTask.getURL);
+
+            asinReviewsTask.urls.concat( await getUrls(currentTabid, `getReviewURLs('${asin}',${totalPage})`));
             //asinReviewsTask.urls = ["https://www.amazon.cn/product-reviews/B00HU65SEU/?pageNumber=1&sortBy=recent"];
             update_process(currentTabid, `${dataList.indexOf(data) + 1}/${dataList.length}`);
-            await main_control(asinReviewsTask, false);
+
         }
+        await main_control(asinReviewsTask);
         showImage = showStyle = showFont = true;  //恢复图片  CSS和font的显示
         createNotify('修正reviews完成', '获取reviews完成', false);
     }
@@ -335,24 +352,26 @@ chrome.contextMenus.create({
         showImage = showStyle = showFont = false;  //屏蔽图片  CSS和font
         let dataList = await getDataList("productCorrect");// 1. get asins
         update_process(currentTabid, "Reviews数量修正开始");
+        let asinReviewsTask = new CreateTask(``, [], "getEarliestReview()", "earliestReview", (datas) => {
+            return false; // don't need stop ,only one page
+        }, (data) => {
+            // only get the last one ,already filter in extractor
+            return data; // don't filter any data
+        });
+
         for (let data of dataList) { //create task for one asin
             let asin = data['asin'];
             if (data['totalReviews'] === 0) {  // skip no reviews asin
                 continue;
             }
             const Page = Math.ceil(data['totalReviews'] / MAX_ONE_PAGE_NUMBERS);//为获得reviews的数量,只看第一页就有的
-            let asinReviewsTask = new CreateTask(`getCertainReviewURLs('${asin}',${Page})`, [], "getEarliestReview()", "earliestReview", (datas) => {
-                return false; // don't need stop ,only one page
-            }, (data) => {
-                // only get the last one ,already filter in extractor
-                return data; // don't filter any data
-            });
 
-            asinReviewsTask.urls = await getUrls(currentTabid, asinReviewsTask.getURL);
+            asinReviewsTask.urls.concat (await getUrls(currentTabid, `getCertainReviewURLs('${asin}',${Page})`) );
             //asinReviewsTask.urls = ["https://www.amazon.cn/product-reviews/B00HU65SEU/?pageNumber=1&sortBy=recent"];
             update_process(currentTabid, `${dataList.indexOf(data) + 1}/${dataList.length}`);
-            await main_control(asinReviewsTask, false);
+
         }
+        await main_control(asinReviewsTask);
         showImage = showStyle = showFont = true;  //恢复图片  CSS和font的显示
         createNotify('获取最早的reviews完成', '获取最早reviews完成', false);
     }
@@ -462,7 +481,7 @@ chrome.runtime.onMessage.addListener(async function (request, sender, sendRespon
     if (request['greeting'] === 'download') {
         let stringDate = new Date();
         stringDate = `${stringDate.getFullYear()}/${stringDate.getMonth()+1}/${stringDate.getDate()}`
-        let dataList = await `getDataList`("productsList");
+        let dataList = await getDataList("productsList");
         downloadFile(dataList, `productsList-${stringDate}.csv`);
         dataList = await getDataList("reviewsList");
         downloadFile(dataList, `reviewsList-${stringDate}.csv`);
