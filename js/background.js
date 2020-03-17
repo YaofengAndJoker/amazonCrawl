@@ -234,7 +234,7 @@ async function main_control(task, processInfo = true) {
                 chrome.tabs.reload(tabid);
                 waitTabs.push(tabid);
             }*/
-            waitTabs=[];
+            waitTabs.length = 0 ; // clear array
             currentURLIndex = currentURLIndex - tabsWithTask.length; // forget this tasks,redo it
             continue ;
         }
@@ -329,7 +329,6 @@ chrome.contextMenus.create({
                 continue;
             }*/
             const totalPage = 1;//为获得reviews的数量,只看第一页就有的
-
 
             asinReviewsTask.urls.concat( await getUrls(currentTabid, `getReviewURLs('${asin}',${totalPage})`));
             //asinReviewsTask.urls = ["https://www.amazon.cn/product-reviews/B00HU65SEU/?pageNumber=1&sortBy=recent"];
@@ -475,6 +474,7 @@ chrome.contextMenus.create({
 	});
 })();
 */
+
 // 监听来自content-script的消息
 chrome.runtime.onMessage.addListener(async function (request, sender, sendResponse) {
     console.log('收到来自content-script的消息：');
@@ -517,7 +517,7 @@ function getDataList(table) {//从indexedDB中导出数据到文件
 
 function downloadFile(dataList, filename) {
     let config = {
-        quotes: false, //or array of booleans
+        quotes: true, //or array of booleans
         quoteChar: '"',
         escapeChar: '"',
         delimiter: ",",
@@ -525,20 +525,18 @@ function downloadFile(dataList, filename) {
         newline: "\r\n",
         skipEmptyLines: false, //or 'greedy',
         columns: null //or array of strings
-    };
-    var csv_content = Papa.unparse(JSON.stringify(dataList), config);// change dataList Array to csv File  use papaparse
-    downloadData(csv_content, filename);
-}
+    };  // dataList 里面如果出现#号,就会出错的
+    var csv_content = Papa.unparse(dataList, config);// change dataList Array to csv File  use papaparse
+    //https://stackoverflow.com/questions/54793997/export-indexeddb-object-store-to-csv
+    // if use uri with tag a ,will lose data  --- let url = "data:text/csv;charset=utf-8,%EF%BB%BF" + csv_content; ink.href = url;
+    let blob = new Blob(['\uFEFF'+csv_content],{type:"text/csv,charset=UTF-8"});//https://blog.csdn.net/weixin_33963594/article/details/91586662
+    let anchor = document.createElement('a');
+    anchor.setAttribute('download',filename);
+    let url = URL.createObjectURL(blob);
+    anchor.setAttribute('href',url);
+    anchor.click();
+    URL.revokeObjectURL(url);
 
-
-function downloadData(csv_content, filename) {
-    let url = "data:text/csv;charset=utf-8,%EF%BB%BF" + csv_content;
-    let link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
 }
 
 // 获取当前选项卡ID

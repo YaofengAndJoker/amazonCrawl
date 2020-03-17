@@ -118,7 +118,6 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
         console.log("background message: start");
         console.dir(request.value);
         console.log("background message: end")
-
     }else{
         ;// do nothing
         //tip(JSON.stringify(request));
