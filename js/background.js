@@ -299,7 +299,7 @@ chrome.contextMenus.create({
             /*if(data['totalReviews'] === 0) {  // skip no reviews asin
                 continue;
             }*/
-            asinReviewsTask.urls.concat( await getUrls(currentTabid, `getAsinDetailURL('${asin}')` ));
+            asinReviewsTask.urls = asinReviewsTask.urls.concat( await getUrls(currentTabid, `getAsinDetailURL('${asin}')` ));
             //asinReviewsTask.urls = ["https://www.amazon.cn/product-reviews/B00HU65SEU/?pageNumber=1&sortBy=recent"];
             update_process(currentTabid, (dataList.indexOf(data) + 1) + "/" + dataList.length);
         }
@@ -331,7 +331,7 @@ chrome.contextMenus.create({
             }*/
             const totalPage = 1;//为获得reviews的数量,只看第一页就有的
 
-            asinReviewsTask.urls.concat( await getUrls(currentTabid, `getReviewURLs('${asin}',${totalPage})`));
+            asinReviewsTask.urls = asinReviewsTask.urls.concat( await getUrls(currentTabid, `getReviewURLs('${asin}',${totalPage})`));
             //asinReviewsTask.urls = ["https://www.amazon.cn/product-reviews/B00HU65SEU/?pageNumber=1&sortBy=recent"];
             update_process(currentTabid, `${dataList.indexOf(data) + 1}/${dataList.length}`);
 
@@ -366,7 +366,7 @@ chrome.contextMenus.create({
             }
             const Page = Math.ceil(data['totalReviews'] / MAX_ONE_PAGE_NUMBERS);//为获得reviews的数量,只看第一页就有的
 
-            asinReviewsTask.urls.concat (await getUrls(currentTabid, `getCertainReviewURLs('${asin}',${Page})`) );
+            asinReviewsTask.urls = asinReviewsTask.urls.concat (await getUrls(currentTabid, `getCertainReviewURLs('${asin}',${Page})`) );
             //asinReviewsTask.urls = ["https://www.amazon.cn/product-reviews/B00HU65SEU/?pageNumber=1&sortBy=recent"];
             update_process(currentTabid, `${dataList.indexOf(data) + 1}/${dataList.length}`);
 
