@@ -37,7 +37,7 @@ let tabsWithTask = [];  //记录了分配的任务的tab有哪几个,到时候�
 let waitTabs = [];  //记录需要等待完成状态的URL有哪些
 let db = undefined;
 
-let NUM_OF_WORKERS = 4;
+let NUM_OF_WORKERS = 10;
 
 // 是否显示图片,字体和CSS
 let showImage = true;
@@ -221,8 +221,9 @@ async function main_control(task, processInfo = true) {
             }
         }
         await awaitPageLoading();  //监听onUpdated  等待页面加载完成 awaitPageLoading每次都要再承诺一次(新建一个Promise)
+        let extractorDataArray;
         try {
-            let extractorDataArray = await awaitTabsExeScript(tabsWithTask, task.extractor, afterGetDataFun, task.table_name, task.checkSaveCondition);
+            extractorDataArray = await awaitTabsExeScript(tabsWithTask, task.extractor, afterGetDataFun, task.table_name, task.checkSaveCondition);
             update_debug_msg(currentTabid, "extractorDataArray start");
             update_debug_msg(currentTabid, extractorDataArray);
             update_debug_msg(currentTabid, "extractorDataArray end");
