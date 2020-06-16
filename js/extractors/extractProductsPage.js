@@ -44,21 +44,29 @@ function extractProductsPage() {
             prices.push(parseFloat(p.innerText.replace(/[^\d.-]/g, '')));//删除$ ￥等金币符号,只保留数字和点以及正负号
         });
         const { 0: price = 0, 1: originalPrice = 0 } = prices;
-        results.push({
-            asin,
-            title: el.querySelector('h2').innerText.trim(),
-            url: $url.href,//.match(`(^.+${asin}).+`)[1],   // url 可能并没有包含asin,可能是个redirect
-            image: el.querySelector('.s-image').src,
-            rating: rating,
-            reviewUrl: 'https://'+`${location.host}/product-reviews/${asin}`,
-            totalReviews: totalReviews,
-            price,
-            originalPrice,
-            fromUrl:location.href,
-            keywords:args['k'].replace("+"," "),
-            page:args['page']==undefined? "1":args['page'] //如果没有page参数,说明是第一页
-            
-        });
+        let title_temp;
+        try {
+            title_temp = el.querySelector('h2').innerText.trim();
+            results.push({
+                asin,
+                title: title_temp,
+                url: $url.href,//.match(`(^.+${asin}).+`)[1],   // url 可能并没有包含asin,可能是个redirect
+                image: el.querySelector('.s-image').src,
+                rating: rating,
+                reviewUrl: 'https://'+`${location.host}/product-reviews/${asin}`,
+                totalReviews: totalReviews,
+                price,
+                originalPrice,
+                fromUrl:location.href,
+                keywords:args['k'].replace("+"," "),
+                page:args['page']==undefined? "1":args['page'] //如果没有page参数,说明是第一页
+                
+            });
+        }
+        catch (error) {
+            // just ignore 
+        }
+
     });
     /*DEBUG CODE*/ //console.log("extractSearchResultPage end");
     return { results };
