@@ -353,7 +353,6 @@ function awaitTabsExeScript(tabsWithTask, extractor, afterGetDataFun, table_name
 
 function update_process(title, value) {
     chrome.browserAction.setBadgeText({ text: value + "%" });
-    chrome.browserAction.setBadgeBackgroundColor({ color: [255, 0, 0, 255] });
 }
 
 
@@ -469,6 +468,7 @@ chrome.contextMenus.create({
         "*://*.amazon.com/*", "*://*.amazon.cn/*", "*://*.amazon.ca/*", "*://*.amazon.in/*", "*://*.amazon.co.uk/*", "*://*.amazon.com.au/*", "*://*.amazon.de/*", "*://*.amazon.fr/*", "*://*.amazon.it/*", "*://*.amazon.es/*"
     ],
     "onclick": async function() {
+        chrome.browserAction.setBadgeBackgroundColor({ color: [255, 0, 0, 255] });
         stopTask = false;
         let currentTabidNew = await getCurrentTabidNew(); ////B08531YD3D  11  B074T8NYKW 169
         currentTabid = currentTabidNew.id;
@@ -490,12 +490,13 @@ chrome.contextMenus.create({
 });
 
 chrome.contextMenus.create({
-    "title": "2. 修正商品列表评论数",
+    "title": "2. 修正商品评论数",
     "contexts": ["page", "all"],
     documentUrlPatterns: [
         "*://*.amazon.com/*", "*://*.amazon.cn/*", "*://*.amazon.ca/*", "*://*.amazon.in/*", "*://*.amazon.co.uk/*", "*://*.amazon.com.au/*", "*://*.amazon.de/*", "*://*.amazon.fr/*", "*://*.amazon.it/*", "*://*.amazon.es/*"
     ],
     "onclick": async function() {
+        chrome.browserAction.setBadgeBackgroundColor({ color: [0, 255, 0, 255] });
         stopTask = false;
         if (currentTabid === undefined || host === "") {
             let currentTabidNew = await getCurrentTabidNew(); ////B08531YD3D  11  B074T8NYKW 169
@@ -539,17 +540,18 @@ chrome.contextMenus.create({
         }
         await main_control(asinReviewsTask);
         showImage = showStyle = showFont = true; //恢复图片  CSS和font的显示
-        createNotify('2. 修正商品列表评论数完成', '', false);
+        createNotify('2. 修正商品评论数完成', '', false);
     }
 });
 chrome.contextMenus.create({
-    "title": "3. 获取最早的评论",
+    "title": "3. 获取商品最早的评论",
     "contexts": ["page", "all"],
     documentUrlPatterns: [
         "*://*.amazon.com/*", "*://*.amazon.cn/*", "*://*.amazon.ca/*", "*://*.amazon.in/*", "*://*.amazon.co.uk/*", "*://*.amazon.com.au/*", "*://*.amazon.de/*", "*://*.amazon.fr/*", "*://*.amazon.it/*", "*://*.amazon.es/*"
     ],
     "onclick": async function() {
         stopTask = false;
+        chrome.browserAction.setBadgeBackgroundColor({ color: [0, 0, 255, 255] });
         if (currentTabid === undefined || host === "") {
             let currentTabidNew = await getCurrentTabidNew(); ////B08531YD3D  11  B074T8NYKW 169
             currentTabid = currentTabidNew.id;
@@ -594,7 +596,7 @@ chrome.contextMenus.create({
         }
         await main_control(asinReviewsTask);
         showImage = showStyle = showFont = true; //恢复图片  CSS和font的显示
-        createNotify('3. Reviews数量修正完成', '', false);
+        createNotify('3. 获取商品最早的评论完成', '', false);
     }
 });
 //旧方法  废弃不用
@@ -675,6 +677,7 @@ chrome.contextMenus.create({
     ],
     "onclick": async function() {
         stopTask = false;
+        chrome.browserAction.setBadgeBackgroundColor({ color: [255, 125, 0, 255] });
         if (currentTabid === undefined || host === "") {
             let currentTabidNew = await getCurrentTabidNew(); ////B08531YD3D  11  B074T8NYKW 169
             currentTabid = currentTabidNew.id;
@@ -727,6 +730,7 @@ chrome.contextMenus.create({
     ],
     "onclick": async function() {
         stopTask = false;
+        chrome.browserAction.setBadgeBackgroundColor({ color: [0, 125, 255, 255] });
         showImage = showStyle = showFont = false; //屏蔽图片  CSS和font
         DexieDBinit();
         if (currentTabid === undefined || host === "") {

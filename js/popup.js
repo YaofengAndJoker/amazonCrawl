@@ -61,7 +61,7 @@ setWorkNumberbutton.onclick = function() {
 };
 var openNewButton = document.getElementById("open_url_new_tab");
 openNewButton.onclick = function() {
-    chrome.tabs.create({ url: 'http://weibit.cn/register' });
+    chrome.tabs.create({ url: 'http://www.coolcourse.cn/register' });
 };
 var openNewButton = document.getElementById("open_url_usage");
 openNewButton.onclick = function() {
@@ -71,7 +71,7 @@ var loginButton = document.getElementById("login");
 loginButton.onclick = function() {
     //调用ajax函数
     ajax({
-        url: 'http://weibit.cn/login',
+        url: 'http://www.coolcourse.cn/login',
         type: 'GET',
         dataType: 'json',
         data: { username: document.getElementById("username").value },
