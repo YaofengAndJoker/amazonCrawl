@@ -31,11 +31,5 @@
         "http://*/*",
         "https://*/*"
     ],
-    "homepage_url": "https://www.baidu.com",
-    "options_page": "options.html",
-    "options_ui": {
-        "page": "options.html",
-        "chrome_style": true
-    },
-    "default_locale": "zh_CN"
+    "homepage_url": "https://www.cnblogs.com/laiqun/p/13150063.html"
 }

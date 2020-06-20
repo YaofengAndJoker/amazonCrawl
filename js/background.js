@@ -1,8 +1,5 @@
 //  await 等待一个promise 的状态变成resolve 或reject ,resolve是用来改变promise状态为resolve的,reject的改变promise状态为reject的  ，在回调中调这两个方法,可以使Promise状态变化
-/*
-chrome.storage.sync.get({debugMode: true}, function (items) {
-    debugMode = items.debugMode;
-});*/
+
 let tabsWithTask = []; //记录了分配的任务的tab有哪几个,到时候要催数据
 let waitTabs = []; //记录需要等待完成状态的URL有哪些
 let db = undefined;
@@ -18,19 +15,43 @@ let MAX_ONE_PAGE_NUMBERS = 10;
 let REVIEW_YEAR_RANGE = 4;
 let tabWithAsin = {};
 let valid = false;
-let validDate = undefined;
+let validDate = {};
+let stopTask = false;
+let waitTimeGeneral = 100;
+let reviewTime = 1000;
+let generalTime = 10;
+const wait = ms => new Promise((resolve, reject) => {
+    setTimeout(() => {
+        console.log(`wait ${ms}ms`);
+        resolve();
+    }, ms);
+});
+
+function showPic() {
+    stopTask = true;
+    showImage = showStyle = showFont = true; //恢复图片  CSS和font的显示
+}
+
+function setNumber(generalWorkers, reviewsWorkers, generalWorksTime, reviewsWorksTime) {
+    NUM_OF_WORKERS = generalWorkers;
+    NUM_OF_BIN_SEARCH = reviewsWorkers;
+    generalTime = generalWorksTime;
+    reviewTime = reviewsWorksTime;
+}
 
 function echo() {
-    if (validDate !== undefined)
-        return validDate;
-    else
-        return undefined;
+    validDate["NUM_OF_WORKERS"] = NUM_OF_WORKERS;
+    validDate["NUM_OF_BIN_SEARCH"] = NUM_OF_BIN_SEARCH;
+    validDate["generalTime"] = generalTime;
+    validDate["reviewTime"] = reviewTime;
+    return validDate;
+
 }
 
 function setValidDate(data) {
     validDate = data;
     let parseDate = Date.parse(new Date(data["Expire"]));
-    let datenow = Date.parse(new Date())
+    let datenow = Date.parse(new Date());
     if (parseDate > datenow) {
         valid = true;
     } else {
@@ -101,23 +122,24 @@ function main_controlOnePage(asin, page) {
         let end = page;
         let newTabsId = await createOneTabs(); //B08531YD3D  11  B074T8NYKW 169
         tabWithAsin[newTabsId[0]] = asin;
+        let targetStart = new Date().getFullYear();
         //先找2020 2017
-        let data1 = await binarySearchYear(start, end, 2020, newTabsId[0]);
+        let data1 = await binarySearchYear(start, end, targetStart, newTabsId[0]);
         //然后夹逼找 2019 和 2018
-        let data2 = await binarySearchYear(start, end, 2017, newTabsId[0]);
+        let data2 = await binarySearchYear(start, end, targetStart - 3, newTabsId[0]);
         if (data1[0] != -1)
             start = data1[0];
         if (data2[0] != -1)
             end = data2[0];
-        let data3 = await binarySearchYear(start, end, 2019, newTabsId[0]);
+        let data3 = await binarySearchYear(start, end, targetStart - 1, newTabsId[0]);
         if (data3[0] != -1)
             start = data3[0];
-        let data4 = await binarySearchYear(start, end, 2018, newTabsId[0]);
+        let data4 = await binarySearchYear(start, end, targetStart - 2, newTabsId[0]);
 
-        resultAll.push(data1)
-        resultAll.push(data3)
-        resultAll.push(data4)
-        resultAll.push(data2)
+        resultAll.push(data1);
+        resultAll.push(data3);
+        resultAll.push(data4);
+        resultAll.push(data2);
         resultAll.push(asin);
         delete(tabWithAsin[newTabsId[0]]);
         chrome.tabs.remove(newTabsId[0]);
@@ -136,9 +158,10 @@ function binarySearchYear(start, end, targetYear, tabid) {
             mid = parseInt((low + high) / 2);
             flag = true;
             let data = await getOnePageReviews(mid, tabid);
+            await wait(parseInt(reviewTime * Math.random() + 10));
             if (data.length >= 1)
                 data = data[0];
-            if (data.length <= 0) {
+            if (data === null || data.length <= 0) {
                 flag = false;
                 break;
             }
@@ -164,6 +187,7 @@ function binarySearchYear(start, end, targetYear, tabid) {
         }
         if (flag === false) {
             resolve([-1, -1]);
+            console.log("invalid data");
             return;
         }
         if (high >= low) {
@@ -205,6 +229,7 @@ function clearDB() {
         db.earliestReview.clear();
         db.productDetail.clear();
         db.reviewYears.clear();
+        db.delete();
     } catch (error) {
         console.log("data clear failed");
     }
@@ -326,12 +351,9 @@ function awaitTabsExeScript(tabsWithTask, extractor, afterGetDataFun, table_name
     });
 }
 
-function update_process(tabid, value) {
-    let views = chrome.extension.getViews({ type: 'popup' });
-    if (views.length > 0) {
-        //console.log(views[0].location.href);
-        views[0].document.getElementById("process_status").innerText = value;
-    }
+function update_process(title, value) {
+    chrome.browserAction.setBadgeText({ text: value + "%" });
+    chrome.browserAction.setBadgeBackgroundColor({ color: [255, 0, 0, 255] });
 }
 
 
@@ -398,25 +420,28 @@ function createNotify(title, message, requireInteraction) {
         //buttons: [{title:'点击此处下载文件'/*,iconUrl:'icon3.png'*/}],//,{title:'按钮2的标题',iconUrl:'icon4.png'}],//https://stackoverflow.com/questions/20188792/is-there-any-way-to-insert-action-buttons-in-notification-in-google-chrome#answer-20190702
         requireInteraction: requireInteraction
     });
-}
+};
+
+
 let currentURLIndex;
 async function main_control(task, processInfo = true) {
     DexieDBinit();
     let newTabsId = await createTabs();
-    if (processInfo) {
-        update_process(currentTabid, "数据获取开始");
-    }
+
+    update_process("数据获取开始", 0);
     // 依次给tabs分配任务,所有tab完成后,分配下一次任务
     currentURLIndex = 0;
     while (currentURLIndex < task.urls.length) {
-        if (processInfo) {
-            update_process(currentTabid, '状态: 正在获取第' + (currentURLIndex + 1) + "页" + ",共" + task.urls.length + "页");
-        }
+        if (stopTask)
+            break;
+
+        update_process("数据获取进度", parseInt(100 * (currentURLIndex + 1) / task.urls.length));
         tabsWithTask = []; //清空一下,认为所有tab都没有任务
         for (let tabId of newTabsId) {
             if (currentURLIndex < task.urls.length) {
                 tabsWithTask.push(tabId);
                 waitTabs.push(tabId);
+                await wait(parseInt(generalTime * Math.random() + 10));
                 PageUpdate(tabId, task.urls[currentURLIndex]);
                 currentURLIndex++;
             }
@@ -431,9 +456,9 @@ async function main_control(task, processInfo = true) {
 
     closeAllTabs(newTabsId);
 
-    if (processInfo) {
-        update_process(currentTabid, "数据获取完成");
-    }
+
+    update_process("数据获取完成", 100);
+
 
 }
 
@@ -444,6 +469,7 @@ chrome.contextMenus.create({
         "*://*.amazon.com/*", "*://*.amazon.cn/*", "*://*.amazon.ca/*", "*://*.amazon.in/*", "*://*.amazon.co.uk/*", "*://*.amazon.com.au/*", "*://*.amazon.de/*", "*://*.amazon.fr/*", "*://*.amazon.it/*", "*://*.amazon.es/*"
     ],
     "onclick": async function() {
+        stopTask = false;
         let currentTabidNew = await getCurrentTabidNew(); ////B08531YD3D  11  B074T8NYKW 169
         currentTabid = currentTabidNew.id;
         host = currentTabidNew.url.split('/')[2];
@@ -470,6 +496,7 @@ chrome.contextMenus.create({
         "*://*.amazon.com/*", "*://*.amazon.cn/*", "*://*.amazon.ca/*", "*://*.amazon.in/*", "*://*.amazon.co.uk/*", "*://*.amazon.com.au/*", "*://*.amazon.de/*", "*://*.amazon.fr/*", "*://*.amazon.it/*", "*://*.amazon.es/*"
     ],
     "onclick": async function() {
+        stopTask = false;
         if (currentTabid === undefined || host === "") {
             let currentTabidNew = await getCurrentTabidNew(); ////B08531YD3D  11  B074T8NYKW 169
             currentTabid = currentTabidNew.id;
@@ -477,8 +504,27 @@ chrome.contextMenus.create({
         }
         showImage = showStyle = showFont = false; //屏蔽图片  CSS和font
         //读取productCorrect，和productsList 集合做比较，如果集合相等，那说明做完了（注意剔除评论数为零的）；
-        let dataList = await getDataList("productsList"); // 1. get asins
-        update_process(currentTabid, "Reviews数量修正开始");
+        let dataRaw = await getDataList("productsList"); // 1. get asins
+        if (dataRaw.length === 0) {
+            createNotify("警告", "待完成任务数据数为零，请确认获取过商品列表", false);
+        }
+        //做一下筛选，去掉价格和评论数为零的，以及已经获取到的
+        let datahaved = await getDataList("productCorrect"); // 1. get asins
+        let dataList = [];
+        for (let data of dataRaw) { //create task for one asin
+            if (data['totalReviews'] === 0 || data['price'] === 0) { // skip no reviews asin and price is 0 
+                continue;
+            }
+            let haveFlag = false;
+            for (let item of datahaved) {
+                if (item['asin'] === data['asin'])
+                    haveFlag = true;
+            }
+            if (haveFlag)
+                continue;
+            dataList.push(data);
+        }
+        //dataList = [{ "asin": "B00K369OSU" }];
         let asinReviewsTask = new CreateTask(``, [], "correctsReviewsAndStar()", "productCorrect", (datas) => {
             return false; // don't need stop ,only one page
         }, (data) => {
@@ -486,15 +532,10 @@ chrome.contextMenus.create({
         });
         for (let data of dataList) { //create task for one asin
             let asin = data['asin'];
-            if (data['totalReviews'] === 0) { // skip no reviews asin
-                continue;
-            }
             const totalPage = 1; //为获得reviews的数量,只看第一页就有的
 
             asinReviewsTask.urls = asinReviewsTask.urls.concat(getReviewURLs(asin, totalPage));
             //asinReviewsTask.urls = ["https://www.amazon.cn/product-reviews/B00HU65SEU/?pageNumber=1&sortBy=recent"];
-            update_process(currentTabid, `${dataList.indexOf(data) + 1}/${dataList.length}`);
-
         }
         await main_control(asinReviewsTask);
         showImage = showStyle = showFont = true; //恢复图片  CSS和font的显示
@@ -508,14 +549,35 @@ chrome.contextMenus.create({
         "*://*.amazon.com/*", "*://*.amazon.cn/*", "*://*.amazon.ca/*", "*://*.amazon.in/*", "*://*.amazon.co.uk/*", "*://*.amazon.com.au/*", "*://*.amazon.de/*", "*://*.amazon.fr/*", "*://*.amazon.it/*", "*://*.amazon.es/*"
     ],
     "onclick": async function() {
+        stopTask = false;
         if (currentTabid === undefined || host === "") {
             let currentTabidNew = await getCurrentTabidNew(); ////B08531YD3D  11  B074T8NYKW 169
             currentTabid = currentTabidNew.id;
             host = currentTabidNew.url.split('/')[2];
         }
         showImage = showStyle = showFont = false; //屏蔽图片  CSS和font
-        let dataList = await getDataList("productCorrect"); // 1. get asins
-        update_process(currentTabid, "Reviews数量修正开始");
+
+        let dataRaw = await getDataList("productCorrect"); // 1. get asins
+        if (dataRaw.length === 0) {
+            createNotify("警告", "待完成任务数据数为零，请确认获取过商品列表，并且修正过评论数", false);
+        }
+        //做一下筛选，去掉价格和评论数为零的，以及已经获取到的
+        let datahaved = await getDataList("earliestReview"); // 1. get asins
+        let dataList = [];
+        for (let data of dataRaw) { //create task for one asin
+            if (data['totalReviews'] === 0) { // skip no reviews asin and price is 0 
+                continue;
+            }
+            let haveFlag = false;
+            for (let item of datahaved) {
+                if (item['asin'] === data['asin'])
+                    haveFlag = true;
+            }
+            if (haveFlag)
+                continue;
+            dataList.push(data);
+        }
+
         let asinReviewsTask = new CreateTask(``, [], "getEarliestReview()", "earliestReview", (datas) => {
             return false; // don't need stop ,only one page
         }, (data) => {
@@ -525,19 +587,14 @@ chrome.contextMenus.create({
 
         for (let data of dataList) { //create task for one asin
             let asin = data['asin'];
-            if (data['totalReviews'] === 0) { // skip no reviews asin
-                continue;
-            }
             const Page = Math.ceil(data['totalReviews'] / MAX_ONE_PAGE_NUMBERS); //为获得reviews的数量,只看第一页就有的
 
-            asinReviewsTask.urls = asinReviewsTask.urls.concat(await getUrls(currentTabid, `getCertainReviewURLs('${asin}',${Page})`));
+            asinReviewsTask.urls = asinReviewsTask.urls.concat(getCertainReviewURLs(asin, Page));
             //asinReviewsTask.urls = ["https://www.amazon.cn/product-reviews/B00HU65SEU/?pageNumber=1&sortBy=recent"];
-            update_process(currentTabid, `${dataList.indexOf(data) + 1}/${dataList.length}`);
-
         }
         await main_control(asinReviewsTask);
         showImage = showStyle = showFont = true; //恢复图片  CSS和font的显示
-        createNotify('3. 获取最早的评论完成', '', false);
+        createNotify('3. Reviews数量修正完成', '', false);
     }
 });
 //旧方法  废弃不用
@@ -617,14 +674,35 @@ chrome.contextMenus.create({
         "*://*.amazon.com/*", "*://*.amazon.cn/*", "*://*.amazon.ca/*", "*://*.amazon.in/*", "*://*.amazon.co.uk/*", "*://*.amazon.com.au/*", "*://*.amazon.de/*", "*://*.amazon.fr/*", "*://*.amazon.it/*", "*://*.amazon.es/*"
     ],
     "onclick": async function() {
+        stopTask = false;
         if (currentTabid === undefined || host === "") {
             let currentTabidNew = await getCurrentTabidNew(); ////B08531YD3D  11  B074T8NYKW 169
             currentTabid = currentTabidNew.id;
             host = currentTabidNew.url.split('/')[2];
         }
         showImage = showStyle = showFont = false; //屏蔽图片  CSS和font
-        let dataList = await getDataList("productsList"); // 1. get asins
-        update_process(currentTabid, "获取商品详情页开始");
+
+        let dataRaw = await getDataList("productsList"); // 1. get asins
+        if (dataRaw.length === 0) {
+            createNotify("警告", "待完成任务数据数为零，请确认获取过商品列表", false);
+        }
+        //做一下筛选，去掉价格和评论数为零的，以及已经获取到的
+        let datahaved = await getDataList("productDetail"); // 1. get asins
+        let dataList = [];
+        for (let data of dataRaw) { //create task for one asin
+            if (data['totalReviews'] === 0 || data['price'] === 0) { // skip no reviews asin and price is 0 
+                continue;
+            }
+            let haveFlag = false;
+            for (let item of datahaved) {
+                if (item['asin'] === data['asin'])
+                    haveFlag = true;
+            }
+            if (haveFlag)
+                continue;
+            dataList.push(data);
+        }
+
         let asinReviewsTask = new CreateTask(``, [], "givAsinDetail()", "productDetail", (datas) => {
             return false; // don't need stop ,only one page
         }, (data) => {
@@ -632,16 +710,12 @@ chrome.contextMenus.create({
         });
         for (let data of dataList) { //create task for one asin
             let asin = data['asin'];
-            if (data['totalReviews'] === 0) { // skip no reviews asin
-                continue;
-            }
             asinReviewsTask.urls = asinReviewsTask.urls.concat(getAsinDetailURL(asin));
             //asinReviewsTask.urls = ["https://www.amazon.cn/product-reviews/B00HU65SEU/?pageNumber=1&sortBy=recent"];
-            update_process(currentTabid, (dataList.indexOf(data) + 1) + "/" + dataList.length);
         }
         await main_control(asinReviewsTask);
         showImage = showStyle = showFont = true; //恢复图片  CSS和font的显示
-        createNotify('4. 获取商品详情完成', '', false);
+        createNotify("4. 获取商品详情页完成", '', false);
     }
 });
 
@@ -652,6 +726,7 @@ chrome.contextMenus.create({
         "*://*.amazon.com/*", "*://*.amazon.cn/*", "*://*.amazon.ca/*", "*://*.amazon.in/*", "*://*.amazon.co.uk/*", "*://*.amazon.com.au/*", "*://*.amazon.de/*", "*://*.amazon.fr/*", "*://*.amazon.it/*", "*://*.amazon.es/*"
     ],
     "onclick": async function() {
+        stopTask = false;
         showImage = showStyle = showFont = false; //屏蔽图片  CSS和font
         DexieDBinit();
         if (currentTabid === undefined || host === "") {
@@ -660,16 +735,38 @@ chrome.contextMenus.create({
             host = currentTabidNew.url.split('/')[2];
         }
 
-        let dataList = await getDataList("productCorrect"); // 1. get asins
-        update_process(currentTabid, "获取每年的评论统计数据获取开始");
+        let dataRaw = await getDataList("productCorrect"); // 1. get asins
+        if (dataRaw.length === 0) {
+            createNotify("警告", "待完成任务数据数为零，请确认获取过商品列表，并且修正过评论数", false);
+        }
+        //做一下筛选，去掉价格和评论数为零的，以及已经获取到的
+        let datahaved = await getDataList("reviewYears"); // 1. get asins
+        let dataList = [];
+        for (let data of dataRaw) { //create task for one asin
+            if (data['totalReviews'] === 0) { // skip no reviews asin and price is 0 
+                continue;
+            }
+            let haveFlag = false;
+            for (let item of datahaved) {
+                if (item['asin'] === data['asin'])
+                    haveFlag = true;
+            }
+            if (haveFlag)
+                continue;
+            dataList.push(data);
+        }
+
+        update_process("获取每年的评论统计数据获取开始", 1);
         let mapTable = {}
         for (let data of dataList) { //create task for one asin
             mapTable[data['asin']] = data['totalReviews'];
         }
         // dataList=[{'asin':"B00V5D8S3C","totalReviews":99}];  //  for test //B00V5D8S3C 99
 
-
+        // let newTabsId = await createOneTabs(); //B08531YD3D  11  B074T8NYKW 169
         for (let index = 0; index < Math.ceil(dataList.length / NUM_OF_BIN_SEARCH); index++) {
+            if (stopTask)
+                break;
             let allPromise = [];
             for (let i = 0; i < NUM_OF_BIN_SEARCH; i++) {
                 if ((index * NUM_OF_BIN_SEARCH + i) >= dataList.length)
@@ -682,6 +779,7 @@ chrome.contextMenus.create({
                     end = 500;
                 let onePromise = main_controlOnePage(dataList[index * NUM_OF_BIN_SEARCH + i]['asin'], end);
                 allPromise.push(onePromise);
+                update_process("获取每年的评论统计数据获取进度", parseInt(100 * (index * NUM_OF_BIN_SEARCH + i) / dataList.length));
             }
             let allResult = await Promise.all(allPromise); //reference https://www.jianshu.com/p/4b0ce07d6c2
 
@@ -728,7 +826,8 @@ chrome.contextMenus.create({
 
         }
         showImage = showStyle = showFont = true; //屏蔽图片  CSS和font
-        createNotify('5. 获取每年的评论统计完成', '', false);
+        update_process("获取每年的评论统计数据获取完成", 100);
+        createNotify("5. 获取每年的评论统计数据获取完成", '', false);
     }
 
 });
@@ -780,12 +879,12 @@ function downloadFile(dataList, filename) {
     let blob = new Blob(['\uFEFF' + csv_content], {
         type: "text/csv,charset=UTF-8"
     }); //https://blog.csdn.net/weixin_33963594/article/details/91586662
-    let anchor = document.createElement('a');
-    anchor.setAttribute('download', filename);
+
     let url = URL.createObjectURL(blob);
-    anchor.setAttribute('href', url);
-    anchor.click();
-    URL.revokeObjectURL(url);
+    chrome.downloads.download({
+        url: url,
+        filename: filename
+    });
 
 }
 
@@ -796,9 +895,9 @@ async function downloadDataBg() {
         createNotify('无法下载数据，请登录账号或查看有效日期', '', false);
         return;
     }
-    update_process(1, "开始下载数据");
+
     let stringDate = new Date();
-    stringDate = `${stringDate.getFullYear()}/${stringDate.getMonth()+1}/${stringDate.getDate()}`
+    stringDate = `${stringDate.getFullYear()}_${stringDate.getMonth()+1}_${stringDate.getDate()}`
     let dataList = await getDataList("productsList");
     downloadFile(dataList, `productsList-${stringDate}.csv`);
     //dataList = await getDataList("reviewsList");

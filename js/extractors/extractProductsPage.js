@@ -1,8 +1,7 @@
-
 function extractProductsPage() {
     /*DEBUG CODE*/ // console.log("extractSearchResultPage start");
     const args = getQueryStringArgs();
-    
+
     const selectors = {
         pagination: '.a-section.a-spacing-small.a-spacing-top-small>span',
         resultItem: 'div[data-asin][data-index].s-result-item',
@@ -28,42 +27,44 @@ function extractProductsPage() {
     document.querySelectorAll(selectors.resultItem).forEach(el => {
         let rating;
         let totalReviews;
-        try{
+        try {
             const [$rating, $totalReviews] = el.querySelector(selectors.overview).children;
             rating = parseFloat(/^[0-9.]+/.exec($rating.innerText)[0]);
-            totalReviews = parseInt($totalReviews.innerText) ;
-        }
-        catch(error){//有的商品没有评论,所以rating 和totoalReviews都是空的
-            rating = 0 ;
-            totalReviews = 0; 
+            totalReviews = parseInt($totalReviews.innerText);
+        } catch (error) { //有的商品没有评论,所以rating 和totoalReviews都是空的
+            rating = 0;
+            totalReviews = 0;
         }
         const $url = el.querySelector(selectors.itemTitle);
         const asin = el.getAttribute('data-asin');
+        if (asin === "" || asin === null)
+            return;
         const prices = [];
         el.querySelectorAll(selectors.prices).forEach((p) => {
-            prices.push(parseFloat(p.innerText.replace(/[^\d.-]/g, '')));//删除$ ￥等金币符号,只保留数字和点以及正负号
+            prices.push(parseFloat(p.innerText.replace(/[^\d.-]/g, ''))); //删除$ ￥等金币符号,只保留数字和点以及正负号
         });
-        const { 0: price = 0, 1: originalPrice = 0 } = prices;
+        const { 0: price = 0, 1: originalPrice = 0 } = prices; //价格为0的，可能是有大量的变体商品
+        if (price === 0)
+            return;
         let title_temp;
         try {
             title_temp = el.querySelector('h2').innerText.trim();
             results.push({
                 asin,
                 title: title_temp,
-                url: $url.href,//.match(`(^.+${asin}).+`)[1],   // url 可能并没有包含asin,可能是个redirect
+                url: $url.href, //.match(`(^.+${asin}).+`)[1],   // url 可能并没有包含asin,可能是个redirect
                 image: el.querySelector('.s-image').src,
                 rating: rating,
-                reviewUrl: 'https://'+`${location.host}/product-reviews/${asin}`,
+                reviewUrl: 'https://' + `${location.host}/product-reviews/${asin}`,
                 totalReviews: totalReviews,
                 price,
                 originalPrice,
-                fromUrl:location.href,
-                keywords:args['k'].replace("+"," "),
-                page:args['page']==undefined? "1":args['page'] //如果没有page参数,说明是第一页
-                
+                fromUrl: location.href,
+                keywords: args['k'].replace("+", " "),
+                page: args['page'] == undefined ? "1" : args['page'] //如果没有page参数,说明是第一页
+
             });
-        }
-        catch (error) {
+        } catch (error) {
             // just ignore 
         }
 

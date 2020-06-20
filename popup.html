@@ -23,7 +23,7 @@
 	<h3  >Amazon Data crawl状态</h3>
 	<form action="" id="user_control">
 	用户名(手机号):<br>
-	<input id="username" type="text" name="firstname" value="">
+	<input id="username" type="text" value="">
 	<br>
 	<!--密码:<br>
 	<input type="password" name="lastname" value="">
@@ -36,8 +36,24 @@
 	<p id="endtime" >账号到期时间:</p>
 	<a href="#" id="invoke_background_js">下载已经获取的数据</a>
 	<a href="#" id="open_url_usage">使用说明</a>
-	<p id="process_status">状态:  数据获取未开始</p>
 	<p >反馈邮箱:  55154717@qq.com</p>
+	<a href="#" id="more_option">显示更多配置</a>
+	<div id="more_option_detail" style="display:none;">
+		<br>
+		<strong>一般任务并发数</strong><br>
+		<input id="works_number" type="text" value="10"><br>
+		<strong>评论获取并发数</strong><br>
+		<input id="works_number_reviews" type="text" value="3"><br>
+		<strong>一般任务等待间隔</strong><br>
+		<input id="works_time" type="text" value="10"><br>
+		<strong>评论获等待间隔</strong><br>
+		<input id="works_time_reviews" type="text" value="1000"><br>	
+		<br>
+		<a href="#" id="setWorkNumber">使设置生效</a>
+		<p id="setNumberStatus"></p>
+	</div>
+	<br>
+	<a href="#" id="setShowPic">暂停任务并显示图片</a>
 	<script type="text/javascript" src="js/popup.js"></script>
 </body>
 

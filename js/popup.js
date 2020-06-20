@@ -1,20 +1,67 @@
-var bg = chrome.extension.getBackgroundPage();
-let loginDate = bg.echo();
-if (loginDate !== undefined) {
-    document.getElementById("username").value = loginDate["Name"];
-    document.getElementById("validcheck").innerText = "登录成功";
-    console.log(loginDate);
-    document.getElementById("endtime").innerText = "账号到期时间:  " + loginDate["Expire"];
+let showMoreOption = false;
+
+function echo() {
+    var bg = chrome.extension.getBackgroundPage();
+    let loginDate = bg.echo();
+    if (loginDate["Name"] != undefined) {
+        document.getElementById("username").value = loginDate["Name"];
+        document.getElementById("validcheck").innerText = "登录成功";
+        document.getElementById("endtime").innerText = "账号到期时间:  " + loginDate["Expire"];
+    }
+    document.getElementById("works_number").value = loginDate["NUM_OF_WORKERS"];
+    document.getElementById("works_number_reviews").value = loginDate["NUM_OF_BIN_SEARCH"];
+    document.getElementById("works_time").value = loginDate["generalTime"];
+    document.getElementById("works_time_reviews").value = loginDate["reviewTime"];
 }
+echo();
 var invokebgbutton = document.getElementById("invoke_background_js");
 invokebgbutton.onclick = function() {
-    var bg = chrome.extension.getBackgroundPage();
+    let bg = chrome.extension.getBackgroundPage();
     bg.downloadDataBg();
 };
-
+var setShowPicbutton = document.getElementById("setShowPic");
+setShowPicbutton.onclick = function() {
+    let bg = chrome.extension.getBackgroundPage();
+    bg.showPic();
+};
+var more_optionbutton = document.getElementById("more_option");
+more_optionbutton.onclick = function() {
+    showMoreOption = !showMoreOption;
+    if (showMoreOption) {
+        let more_option_detailButton = document.getElementById("more_option_detail");
+        more_option_detailButton.style.display = "block";
+        more_optionbutton.innerText = "隐藏更多选项";
+    } else {
+        let more_option_detailButton = document.getElementById("more_option_detail");
+        more_option_detailButton.style.display = "none";
+        more_optionbutton.innerText = "显示更多选项";
+    }
+};
+var setWorkNumberbutton = document.getElementById("setWorkNumber");
+setWorkNumberbutton.onclick = function() {
+    let generalWorksNumber = parseInt(document.getElementById("works_number").value);
+    let reviewsWorksNumber = parseInt(document.getElementById("works_number_reviews").value);
+    let generalWorksTime = parseInt(document.getElementById("works_time").value);
+    let reviewsWorksTime = parseInt(document.getElementById("works_time_reviews").value);
+    if (isNaN(generalWorksNumber) || generalWorksNumber <= 0) {
+        generalWorksNumber = 10;
+    }
+    if (isNaN(reviewsWorksNumber) || reviewsWorksNumber <= 0) {
+        reviewsWorksNumber = 4;
+    }
+    if (isNaN(generalWorksTime) || generalWorksTime <= 0) {
+        generalWorksTime = 10;
+    }
+    if (isNaN(reviewsWorksTime) || reviewsWorksTime <= 0) {
+        reviewsWorksTime = 1000;
+    }
+    let bg = chrome.extension.getBackgroundPage();
+    bg.setNumber(generalWorksNumber, reviewsWorksNumber, generalWorksTime, reviewsWorksTime);
+    document.getElementById("setNumberStatus").innerText = "设置完成";
+};
 var openNewButton = document.getElementById("open_url_new_tab");
 openNewButton.onclick = function() {
-    chrome.tabs.create({ url: 'http://www.coolcourse.cn/register' });
+    chrome.tabs.create({ url: 'http://weibit.cn/register' });
 };
 var openNewButton = document.getElementById("open_url_usage");
 openNewButton.onclick = function() {
@@ -24,7 +71,7 @@ var loginButton = document.getElementById("login");
 loginButton.onclick = function() {
     //调用ajax函数
     ajax({
-        url: 'http://www.coolcourse.cn/login',
+        url: 'http://weibit.cn/login',
         type: 'GET',
         dataType: 'json',
         data: { username: document.getElementById("username").value },
