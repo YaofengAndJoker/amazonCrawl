@@ -12,6 +12,10 @@ function echo() {
     document.getElementById("works_number_reviews").value = loginDate["NUM_OF_BIN_SEARCH"];
     document.getElementById("works_time").value = loginDate["generalTime"];
     document.getElementById("works_time_reviews").value = loginDate["reviewTime"];
+    if (loginDate["keep_haved"])
+        document.getElementById("keep_haved").checked = true;
+    else
+        document.getElementById("keep_haved").checked = false;
 }
 echo();
 var invokebgbutton = document.getElementById("invoke_background_js");
@@ -56,7 +60,7 @@ setWorkNumberbutton.onclick = function() {
         reviewsWorksTime = 1000;
     }
     let bg = chrome.extension.getBackgroundPage();
-    bg.setNumber(generalWorksNumber, reviewsWorksNumber, generalWorksTime, reviewsWorksTime);
+    bg.setNumber(generalWorksNumber, reviewsWorksNumber, generalWorksTime, reviewsWorksTime, document.getElementById("keep_haved").checked);
     document.getElementById("setNumberStatus").innerText = "设置完成";
 };
 var openNewButton = document.getElementById("open_url_new_tab");

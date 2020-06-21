@@ -20,6 +20,7 @@ let stopTask = false;
 let waitTimeGeneral = 100;
 let reviewTime = 1000;
 let generalTime = 10;
+let keep_haved = true;
 const wait = ms => new Promise((resolve, reject) => {
     setTimeout(() => {
         console.log(`wait ${ms}ms`);
@@ -32,11 +33,12 @@ function showPic() {
     showImage = showStyle = showFont = true; //恢复图片  CSS和font的显示
 }
 
-function setNumber(generalWorkers, reviewsWorkers, generalWorksTime, reviewsWorksTime) {
+function setNumber(generalWorkers, reviewsWorkers, generalWorksTime, reviewsWorksTime, keep) {
     NUM_OF_WORKERS = generalWorkers;
     NUM_OF_BIN_SEARCH = reviewsWorkers;
     generalTime = generalWorksTime;
     reviewTime = reviewsWorksTime;
+    keep_haved = keep;
 }
 
 function echo() {
@@ -44,6 +46,7 @@ function echo() {
     validDate["NUM_OF_BIN_SEARCH"] = NUM_OF_BIN_SEARCH;
     validDate["generalTime"] = generalTime;
     validDate["reviewTime"] = reviewTime;
+    validDate["keep_haved"] = keep_haved;
     return validDate;
 
 }
@@ -525,6 +528,9 @@ chrome.contextMenus.create({
                 continue;
             dataList.push(data);
         }
+        if (!keep_haved) {
+            dataList = dataRaw;
+        }
         //dataList = [{ "asin": "B00K369OSU" }];
         let asinReviewsTask = new CreateTask(``, [], "correctsReviewsAndStar()", "productCorrect", (datas) => {
             return false; // don't need stop ,only one page
@@ -579,7 +585,9 @@ chrome.contextMenus.create({
                 continue;
             dataList.push(data);
         }
-
+        if (!keep_haved) {
+            dataList = dataRaw;
+        }
         let asinReviewsTask = new CreateTask(``, [], "getEarliestReview()", "earliestReview", (datas) => {
             return false; // don't need stop ,only one page
         }, (data) => {
@@ -705,7 +713,9 @@ chrome.contextMenus.create({
                 continue;
             dataList.push(data);
         }
-
+        if (!keep_haved) {
+            dataList = dataRaw;
+        }
         let asinReviewsTask = new CreateTask(``, [], "givAsinDetail()", "productDetail", (datas) => {
             return false; // don't need stop ,only one page
         }, (data) => {
@@ -759,7 +769,9 @@ chrome.contextMenus.create({
                 continue;
             dataList.push(data);
         }
-
+        if (!keep_haved) {
+            dataList = dataRaw;
+        }
         update_process("获取每年的评论统计数据获取开始", 1);
         let mapTable = {}
         for (let data of dataList) { //create task for one asin
