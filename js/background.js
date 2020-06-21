@@ -120,6 +120,12 @@ async function getOnePageReviews(page, tabid) {
 
 function main_controlOnePage(asin, page) {
     return new Promise(async(resolve, reject) => {
+        let tempResult = [
+            [-1, -1],
+            [-1, -1],
+            [-1, -1],
+            [-1, -1]
+        ];
         let resultAll = [];
         let start = 1;
         let end = page;
@@ -128,17 +134,36 @@ function main_controlOnePage(asin, page) {
         let targetStart = new Date().getFullYear();
         //先找2020 2017
         let data1 = await binarySearchYear(start, end, targetStart, newTabsId[0]);
+        if (data1[0] == -1) {
+            delete(tabWithAsin[newTabsId[0]]);
+            resolve(tempResult);
+            return;
+        }
         //然后夹逼找 2019 和 2018
         let data2 = await binarySearchYear(start, end, targetStart - 3, newTabsId[0]);
+        if (data2[0] == -1) {
+            delete(tabWithAsin[newTabsId[0]]);
+            resolve(tempResult);
+            return;
+        }
         if (data1[0] != -1)
             start = data1[0];
         if (data2[0] != -1)
             end = data2[0];
         let data3 = await binarySearchYear(start, end, targetStart - 1, newTabsId[0]);
+        if (data3[0] == -1) {
+            delete(tabWithAsin[newTabsId[0]]);
+            resolve(tempResult);
+            return;
+        }
         if (data3[0] != -1)
             start = data3[0];
         let data4 = await binarySearchYear(start, end, targetStart - 2, newTabsId[0]);
-
+        if (data4[0] == -1) {
+            delete(tabWithAsin[newTabsId[0]]);
+            resolve(tempResult);
+            return;
+        }
         resultAll.push(data1);
         resultAll.push(data3);
         resultAll.push(data4);
