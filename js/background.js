@@ -158,7 +158,7 @@ function binarySearchYear(start, end, targetYear, tabid) {
             mid = parseInt((low + high) / 2);
             flag = true;
             let data = await getOnePageReviews(mid, tabid);
-            await wait(parseInt(reviewTime * Math.random() + 10));
+            await wait(parseInt(reviewTime * (Math.random() * 0.5 + 0.5)));
             if (data.length >= 1)
                 data = data[0];
             if (data === null || data.length <= 0) {
@@ -440,7 +440,7 @@ async function main_control(task, processInfo = true) {
             if (currentURLIndex < task.urls.length) {
                 tabsWithTask.push(tabId);
                 waitTabs.push(tabId);
-                await wait(parseInt(generalTime * Math.random() + 10));
+                await wait(parseInt(generalTime * (Math.random() * 0.5 + 0.5)));
                 PageUpdate(tabId, task.urls[currentURLIndex]);
                 currentURLIndex++;
             }
