@@ -136,6 +136,7 @@ function main_controlOnePage(asin, page) {
         let data1 = await binarySearchYear(start, end, targetStart, newTabsId[0]);
         if (data1[0] == -1) {
             delete(tabWithAsin[newTabsId[0]]);
+            chrome.tabs.remove(newTabsId[0]);
             resolve(tempResult);
             return;
         }
@@ -143,6 +144,7 @@ function main_controlOnePage(asin, page) {
         let data2 = await binarySearchYear(start, end, targetStart - 3, newTabsId[0]);
         if (data2[0] == -1) {
             delete(tabWithAsin[newTabsId[0]]);
+            chrome.tabs.remove(newTabsId[0]);
             resolve(tempResult);
             return;
         }
@@ -153,6 +155,7 @@ function main_controlOnePage(asin, page) {
         let data3 = await binarySearchYear(start, end, targetStart - 1, newTabsId[0]);
         if (data3[0] == -1) {
             delete(tabWithAsin[newTabsId[0]]);
+            chrome.tabs.remove(newTabsId[0]);
             resolve(tempResult);
             return;
         }
@@ -161,6 +164,7 @@ function main_controlOnePage(asin, page) {
         let data4 = await binarySearchYear(start, end, targetStart - 2, newTabsId[0]);
         if (data4[0] == -1) {
             delete(tabWithAsin[newTabsId[0]]);
+            chrome.tabs.remove(newTabsId[0]);
             resolve(tempResult);
             return;
         }
