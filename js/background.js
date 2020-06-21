@@ -124,7 +124,8 @@ function main_controlOnePage(asin, page) {
             [-1, -1],
             [-1, -1],
             [-1, -1],
-            [-1, -1]
+            [-1, -1],
+            asin
         ];
         let resultAll = [];
         let start = 1;
