@@ -113,6 +113,9 @@ async function getOnePageReviews(page, tabid) {
     PageUpdate(tabid, url[0]);
     //2. 等待该tabid加载完成
     await awaitOnePageLoading(tabid);
+    //页面加载完成，content_script不一定加载完成了啊,content script已经弃用
+    await wait(parseInt(reviewTime * (Math.random() * 0.5 + 0.5)));
+
     //3. 注入脚本提取数据并返回
     let data = await awaitOneTabsExeScript(tabid);
     return data;
@@ -191,13 +194,12 @@ function binarySearchYear(start, end, targetYear, tabid) {
             mid = parseInt((low + high) / 2);
             flag = true;
             let data = await getOnePageReviews(mid, tabid);
-            await wait(parseInt(reviewTime * (Math.random() * 0.5 + 0.5)));
-            if (data.length >= 1)
-                data = data[0];
             if (data === null || data.length <= 0) {
                 flag = false;
                 break;
             }
+            if (data.length >= 1)
+                data = data[0];
             let dataFirst = parseInt(data[0].date.substr(0, 4));
             let dataLast = parseInt(data[data.length - 1].date.substr(0, 4));
             if (dataLast > targetYear) {
@@ -280,9 +282,13 @@ function CreateTask(getURL, urls, extractor, table_name, checkstopCondition, che
 function getUrls(tabid, getURL) {
     return new Promise((resolve, reject) => { // 根据tabid获取url列表
         chrome.tabs.executeScript(tabid, {
-            code: getURL /*,runAt:"document_end"*/
+            file: getURL /*,runAt:"document_end"*/
         }, (data) => {
-            resolve(JSON.parse(data));
+            if (data == null)
+                return [];
+            if (data.length >= 1)
+                data = data[0];
+            resolve(data);
         });
     });
 }
@@ -340,7 +346,7 @@ function awaitOneTabsExeScript(tabid) {
     return new Promise((resolve, reject) => {
         try {
             chrome.tabs.executeScript(tabid, {
-                code: "giveReviewsResult()" /*,runAt:"document_end"*/
+                file: "js/extractItemReviewPage.js" /*,runAt:"document_end"*/
             }, async(data) => {
                 resolve(data);
             }); //end of executeScript
@@ -354,7 +360,7 @@ function awaitTabsExeScript(tabsWithTask, extractor, afterGetDataFun, table_name
         awaitExeScript.push(new Promise((resolve, reject) => {
             try {
                 chrome.tabs.executeScript(item, {
-                    code: extractor /*,runAt:"document_end"*/
+                    file: extractor /*,runAt:"document_end"*/
                 }, async(data) => {
                     let flag = afterGetDataFun(data, table_name, checkSaveCondition);
                     if (flag) {
@@ -506,7 +512,7 @@ chrome.contextMenus.create({
         let currentTabidNew = await getCurrentTabidNew(); ////B08531YD3D  11  B074T8NYKW 169
         currentTabid = currentTabidNew.id;
         host = currentTabidNew.url.split('/')[2];
-        let productsTask = new CreateTask("getProductsURLs()", [], "giveProductsResult()", "productsList", (datas) => {
+        let productsTask = new CreateTask("js/getProductsURLs.js", [], "js/extractProductsPage.js", "productsList", (datas) => {
             return false;
         }, (data) => {
             return data; // filter data
@@ -561,8 +567,9 @@ chrome.contextMenus.create({
         if (!keep_haved) {
             dataList = dataRaw;
         }
-        //dataList = [{ "asin": "B00K369OSU" }];
-        let asinReviewsTask = new CreateTask(``, [], "correctsReviewsAndStar()", "productCorrect", (datas) => {
+        //  dataList = [{ "asin": "B00K369OSU" }]; // for test
+        //  dataList.length = 15  // for test
+        let asinReviewsTask = new CreateTask(``, [], "js/extractReviewNumber.js", "productCorrect", (datas) => {
             return false; // don't need stop ,only one page
         }, (data) => {
             return data; // don't filter any data
@@ -618,7 +625,7 @@ chrome.contextMenus.create({
         if (!keep_haved) {
             dataList = dataRaw;
         }
-        let asinReviewsTask = new CreateTask(``, [], "getEarliestReview()", "earliestReview", (datas) => {
+        let asinReviewsTask = new CreateTask(``, [], "js/extractEarliestReview.js", "earliestReview", (datas) => {
             return false; // don't need stop ,only one page
         }, (data) => {
             // only get the last one ,already filter in extractor
@@ -662,7 +669,7 @@ chrome.contextMenus.create({
                 continue;
             }
             const totalPage = Math.ceil(data['totalReviews'] / MAX_ONE_PAGE_NUMBERS); //获得reviews的数量,计算页数
-            let asinReviewsTask = new CreateTask(`getReviewURLs('${asin}',${totalPage})`, [], "giveReviewsResult()", "reviewsList", (datas) => {
+            let asinReviewsTask = new CreateTask(`getReviewURLs('${asin}',${totalPage})`, [], "js/extractItemReviewPage.js", "reviewsList", (datas) => {
                 try {
                     for (let data of datas) { // 评论数组1 评论数组2
                         if (data["length"] === undefined || data.length === 0) { // don't get anything ,stop this asin task
@@ -746,7 +753,7 @@ chrome.contextMenus.create({
         if (!keep_haved) {
             dataList = dataRaw;
         }
-        let asinReviewsTask = new CreateTask(``, [], "givAsinDetail()", "productDetail", (datas) => {
+        let asinReviewsTask = new CreateTask(``, [], "js/extractAsinDetail.js", "productDetail", (datas) => {
             return false; // don't need stop ,only one page
         }, (data) => {
             return data; // don't filter any data
@@ -807,8 +814,8 @@ chrome.contextMenus.create({
         for (let data of dataList) { //create task for one asin
             mapTable[data['asin']] = data['totalReviews'];
         }
-        // dataList=[{'asin':"B00V5D8S3C","totalReviews":99}];  //  for test //B00V5D8S3C 99
-
+        //dataList = [{ 'asin': "B00V5D8S3C", "totalReviews": 99 }]; //  for test //B00V5D8S3C 99
+        // dataList.length=10;
         // let newTabsId = await createOneTabs(); //B08531YD3D  11  B074T8NYKW 169
         for (let index = 0; index < Math.ceil(dataList.length / NUM_OF_BIN_SEARCH); index++) {
             if (stopTask)

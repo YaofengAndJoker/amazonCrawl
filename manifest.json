@@ -16,9 +16,10 @@
         "default_title": "Amazon精细化选品插件",
         "default_popup": "popup.html"
     },
+
     "content_scripts": [{
         "matches": ["*://*.amazon.com/*", "*://*.amazon.cn/*", "*://*.amazon.co.uk/*", "*://*.amazon.com.au/*", "*://*.amazon.ca/*", "*://*.amazon.in/*", "*://*.amazon.de/*", "*://*.amazon.fr/*", "*://*.amazon.it/*", "*://*.amazon.es/*", "file:///*"],
-        "js": ["js/util.js", "js/extractors/extractProductsPage.js", "js/extractors/extractReviewPage.js", "js/extractors/extractReviewNumber.js", "js/extractors/extractEarliestReview.js", "js/extractors/extractAsinDetail.js", "js/content-script.js"]
+        "js": ["js/content-script.js"]
     }],
     "permissions": [
         "contextMenus",
@@ -27,6 +28,7 @@
         "webRequest",
         "downloads",
         "webRequestBlocking",
+        "activeTab",
         "storage",
         "http://*/*",
         "https://*/*"
