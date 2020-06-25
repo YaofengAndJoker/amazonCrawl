@@ -18,7 +18,7 @@
     },
 
     "content_scripts": [{
-        "matches": ["*://*.amazon.com/*", "*://*.amazon.cn/*", "*://*.amazon.co.uk/*", "*://*.amazon.com.au/*", "*://*.amazon.ca/*", "*://*.amazon.in/*", "*://*.amazon.de/*", "*://*.amazon.fr/*", "*://*.amazon.it/*", "*://*.amazon.es/*", "file:///*"],
+        "matches": ["*://*.amazon.com/*", "*://*.amazon.cn/*", "*://*.amazon.co.uk/*", "*://*.amazon.com.au/*", "*://*.amazon.ca/*", "*://*.amazon.in/*", "*://*.amazon.de/*", "*://*.amazon.fr/*", "*://*.amazon.it/*", "*://*.amazon.es/*"],
         "js": ["js/content-script.js"]
     }],
     "permissions": [
@@ -33,5 +33,5 @@
         "http://*/*",
         "https://*/*"
     ],
-    "homepage_url": "https://www.cnblogs.com/laiqun/p/13150063.html"
+    "homepage_url": "http://weibit.cn/"
 }

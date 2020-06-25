@@ -119,6 +119,7 @@ function main_controlOnePage(asin, page, partion) {
             [-1, -1],
             [-1, -1],
             [-1, -1],
+            [-1, -1],
             asin
         ];
         let resultAll = [];
@@ -343,7 +344,6 @@ function afterGetDataFun(data, table_name, checkSaveCondition) {
         });
         return true;
     }
-
 }
 
 function awaitOneTabsExeScript(tabid) {
