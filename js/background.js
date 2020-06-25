@@ -17,16 +17,12 @@ let tabWithAsin = {};
 let valid = false;
 let validDate = {};
 let stopTask = false;
-let waitTimeGeneral = 100;
 let reviewTime = 1000;
 let generalTime = 10;
 let keep_haved = true;
 let batchSize = 200;
 const wait = ms => new Promise((resolve, reject) => {
-    setTimeout(() => {
-        console.log(`wait ${ms}ms`);
-        resolve();
-    }, ms);
+    setTimeout(resolve, ms);
 });
 
 function showPic() {
@@ -57,19 +53,12 @@ function echo() {
 function setValidDate(data) {
     validDate = data;
     let parseDate = Date.parse(new Date(data["Expire"]));
-    let datenow = Date.parse(new Date());
-    if (parseDate > datenow) {
-        valid = true;
-    } else {
-        valid = false;
-    }
+    let dateNow = Date.parse(new Date());
+    valid = parseDate > dateNow;
 }
 
 function checkValid() {
-    if (valid)
-        return true;
-    else
-        return false;
+    return valid;
 }
 
 function getReviewURLs(asin, totalPage = 1) {
@@ -120,8 +109,7 @@ async function getOnePageReviews(page, tabid) {
     await wait(parseInt(reviewTime * (Math.random() * 0.5 + 0.5)));
 
     //3. 注入脚本提取数据并返回
-    let data = await awaitOneTabsExeScript(tabid);
-    return data;
+    return await awaitOneTabsExeScript(tabid);
 }
 
 function main_controlOnePage(asin, page) {
@@ -141,7 +129,7 @@ function main_controlOnePage(asin, page) {
         let targetStart = new Date().getFullYear();
         //先找2020 2017
         let data1 = await binarySearchYear(start, end, targetStart, newTabsId[0]);
-        if (data1[0] == -1) {
+        if (data1[0] === -1) {
             delete(tabWithAsin[newTabsId[0]]);
             chrome.tabs.remove(newTabsId[0]);
             resolve(tempResult);
@@ -149,27 +137,27 @@ function main_controlOnePage(asin, page) {
         }
         //然后夹逼找 2019 和 2018
         let data2 = await binarySearchYear(start, end, targetStart - 3, newTabsId[0]);
-        if (data2[0] == -1) {
+        if (data2[0] === -1) {
             delete(tabWithAsin[newTabsId[0]]);
             chrome.tabs.remove(newTabsId[0]);
             resolve(tempResult);
             return;
         }
-        if (data1[0] != -1)
+        if (data1[0] !== -1)
             start = data1[0];
-        if (data2[0] != -1)
+        if (data2[0] !== -1)
             end = data2[0];
         let data3 = await binarySearchYear(start, end, targetStart - 1, newTabsId[0]);
-        if (data3[0] == -1) {
+        if (data3[0] === -1) {
             delete(tabWithAsin[newTabsId[0]]);
             chrome.tabs.remove(newTabsId[0]);
             resolve(tempResult);
             return;
         }
-        if (data3[0] != -1)
+        if (data3[0] !== -1)
             start = data3[0];
         let data4 = await binarySearchYear(start, end, targetStart - 2, newTabsId[0]);
-        if (data4[0] == -1) {
+        if (data4[0] === -1) {
             delete(tabWithAsin[newTabsId[0]]);
             chrome.tabs.remove(newTabsId[0]);
             resolve(tempResult);
@@ -217,9 +205,9 @@ function binarySearchYear(start, end, targetYear, tabid) {
                 break;
             } else if (dataFirst < targetYear) {
                 high = mid - 1;
-            } else if (dataFirst == targetYear && dataLast == targetYear) {
+            } else if (dataFirst === targetYear && dataLast === targetYear) {
                 low = mid + 1;
-            } else if (dataFirst > targetYear && dataLast == targetYear) {
+            } else if (dataFirst > targetYear && dataLast === targetYear) {
                 low = mid + 1;
             }
         }
@@ -300,7 +288,7 @@ function awaitOnePageLoading(tabid) {
     return new Promise((resolve, reject) => { // 页面可能有重定向,location.href可能被脚本改变,不再看url,而是看tab.id
         let callbackFun = function(id, info, tab) {
             if (tab.status === 'complete' && info["status"] !== undefined) { //complte 事件会触发多次,一次info为{status:'complete'} 一次为 favIconUrl: "https://www.amazon.cn/favicon.ico",如果页面有ifame,complete次数会更多,这时候需要通过url对比来判断
-                if (tab.id == tabid) { // find complete in waitURLS                    
+                if (tab.id === tabid) { // find complete in waitURLS
                     chrome.tabs.onUpdated.removeListener(callbackFun);
                     resolve("awaitPageLoading complete");
                 }
@@ -335,7 +323,6 @@ function afterGetDataFun(data, table_name, checkSaveCondition) {
     let DataSaved;
     if (data[0] === undefined) {
         console.log("没有抓取到数据");
-        DataSaved = [];
         return false;
     } else {
         DataSaved = checkSaveCondition(data[0]);
@@ -403,7 +390,6 @@ function update_process(value) {
     chrome.browserAction.setBadgeText({ text: value + "%" });
 }
 
-
 function getCurrentTabidNew() {
     return new Promise((resolve, reject) => {
         chrome.tabs.query({
@@ -467,7 +453,7 @@ function createNotify(title, message, requireInteraction) {
         //buttons: [{title:'点击此处下载文件'/*,iconUrl:'icon3.png'*/}],//,{title:'按钮2的标题',iconUrl:'icon4.png'}],//https://stackoverflow.com/questions/20188792/is-there-any-way-to-insert-action-buttons-in-notification-in-google-chrome#answer-20190702
         requireInteraction: requireInteraction
     });
-};
+}
 
 
 let currentURLIndex;
@@ -502,11 +488,7 @@ async function main_control(task, processInfo = true) {
     } // end of while
 
     closeAllTabs(newTabsId);
-
-
     update_process(100);
-
-
 }
 
 chrome.contextMenus.create({
@@ -823,7 +805,7 @@ chrome.contextMenus.create({
         }
         dataList.length = batchSize;
         update_process(0);
-        let mapTable = {}
+        let mapTable = {};
         for (let data of dataList) { //create task for one asin
             mapTable[data['asin']] = data['totalReviews'];
         }
@@ -963,7 +945,7 @@ async function downloadDataBg() {
     }
 
     let stringDate = new Date();
-    stringDate = `${stringDate.getFullYear()}_${stringDate.getMonth()+1}_${stringDate.getDate()}`
+    stringDate = `${stringDate.getFullYear()}_${stringDate.getMonth()+1}_${stringDate.getDate()}`;
     let dataList = await getDataList("productsList");
     downloadFile(dataList, `productsList-${stringDate}.csv`);
     //dataList = await getDataList("reviewsList");

@@ -1,35 +1,32 @@
 let showMoreOption = false;
 
 function echo() {
-    var bg = chrome.extension.getBackgroundPage();
+    const bg = chrome.extension.getBackgroundPage();
     let loginDate = bg.echo();
-    if (loginDate["Name"] != undefined) {
+    if (loginDate["Name"] !== undefined) {
         document.getElementById("username").value = loginDate["Name"];
         document.getElementById("validcheck").innerText = "登录成功";
-        document.getElementById("endtime").innerText = "账号到期时间:  " + loginDate["Expire"];
+        document.getElementById("expiretime").innerText = "账号到期时间:  " + loginDate["Expire"];
     }
     document.getElementById("works_number").value = loginDate["NUM_OF_WORKERS"];
     document.getElementById("works_number_reviews").value = loginDate["NUM_OF_BIN_SEARCH"];
     document.getElementById("works_time").value = loginDate["generalTime"];
     document.getElementById("works_time_reviews").value = loginDate["reviewTime"];
-    if (loginDate["keep_haved"])
-        document.getElementById("keep_haved").checked = true;
-    else
-        document.getElementById("keep_haved").checked = false;
+    document.getElementById("keep_haved").checked = !!loginDate["keep_haved"];
     document.getElementById("batchsize").value = loginDate["batchSize"];
 }
 echo();
-var invokebgbutton = document.getElementById("invoke_background_js");
-invokebgbutton.onclick = function() {
+const invokebgButton = document.getElementById("invoke_background_js");
+invokebgButton.onclick = function() {
     let bg = chrome.extension.getBackgroundPage();
     bg.downloadDataBg();
 };
-var setShowPicbutton = document.getElementById("setShowPic");
+const setShowPicbutton = document.getElementById("setShowPic");
 setShowPicbutton.onclick = function() {
     let bg = chrome.extension.getBackgroundPage();
     bg.showPic();
 };
-var more_optionbutton = document.getElementById("more_option");
+const more_optionbutton = document.getElementById("more_option");
 more_optionbutton.onclick = function() {
     showMoreOption = !showMoreOption;
     if (showMoreOption) {
@@ -42,7 +39,7 @@ more_optionbutton.onclick = function() {
         more_optionbutton.innerText = "显示更多选项";
     }
 };
-var setWorkNumberbutton = document.getElementById("setWorkNumber");
+const setWorkNumberbutton = document.getElementById("setWorkNumber");
 setWorkNumberbutton.onclick = function() {
     let generalWorksNumber = parseInt(document.getElementById("works_number").value);
     let reviewsWorksNumber = parseInt(document.getElementById("works_number_reviews").value);
@@ -68,15 +65,15 @@ setWorkNumberbutton.onclick = function() {
     bg.setNumber(generalWorksNumber, reviewsWorksNumber, generalWorksTime, reviewsWorksTime, document.getElementById("keep_haved").checked, batchSize);
     document.getElementById("setNumberStatus").innerText = "设置完成";
 };
-var openNewButton = document.getElementById("open_url_new_tab");
+const openNewButton = document.getElementById("open_url_new_tab");
 openNewButton.onclick = function() {
     chrome.tabs.create({ url: 'http://weibit.cn/register' });
 };
-var openNewButton = document.getElementById("open_url_usage");
-openNewButton.onclick = function() {
+const openUsageButton = document.getElementById("open_url_usage");
+openUsageButton.onclick = function() {
     chrome.tabs.create({ url: 'https://www.cnblogs.com/laiqun/p/13150063.html' });
 };
-var loginButton = document.getElementById("login");
+const loginButton = document.getElementById("login");
 loginButton.onclick = function() {
     //调用ajax函数
     ajax({
@@ -87,10 +84,10 @@ loginButton.onclick = function() {
         success: function(response, xml) {
             //请求成功后执行的代码
             //console.log(JSON.parse(response));
-            if (response.indexOf('Not') == -1) {
+            if (response.indexOf('Not') === -1) {
                 let responseData = JSON.parse(response);
                 document.getElementById("validcheck").innerText = "登录成功";
-                document.getElementById("endtime").innerText = "账号到期时间:  " + responseData["Expire"];
+                document.getElementById("expiretime").innerText = "账号到期时间:  " + responseData["Expire"];
                 if (responseData['info'] !== undefined) {
                     document.getElementById("process_status").innerText = responseData['info'];
                 }
@@ -98,7 +95,7 @@ loginButton.onclick = function() {
                 bg.setValidDate(responseData);
             } else {
                 document.getElementById("validcheck").innerText = "没有该账户";
-                document.getElementById("endtime").innerText = "";
+                document.getElementById("expiretime").innerText = "";
             }
         },
         error: function(status) {
@@ -124,7 +121,7 @@ function ajax(options) {
 
     //接收-第三步
     xhr.onreadystatechange = function() {
-        if (xhr.readyState == 4) {
+        if (xhr.readyState === 4) {
             var status = xhr.status;
             if (status >= 200 && status < 300) {
                 options.success && options.success(xhr.responseText, xhr.responseXML);
@@ -132,13 +129,13 @@ function ajax(options) {
                 options.error && options.error(status);
             }
         }
-    }
+    };
 
     //连接和发送-第二步
-    if (options.type == 'GET') {
+    if (options.type === 'GET') {
         xhr.open('GET', options.url + '?' + params, true);
         xhr.send(null);
-    } else if (options.type == 'POST') {
+    } else if (options.type === 'POST') {
         xhr.open('POST', options.url, true);
         //设置表单提交时的内容类型
         xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
@@ -148,8 +145,8 @@ function ajax(options) {
 
 //格式化参数
 function formatParams(data) {
-    var arr = [];
-    for (var name in data) {
+    let arr = [];
+    for (let name in data) {
         arr.push(encodeURIComponent(name) + '=' + encodeURIComponent(data[name]));
     }
     arr.push(('v=' +

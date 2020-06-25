@@ -6,10 +6,10 @@ function getProductsURLs() {
     urls.push(document.querySelector('.a-pagination .a-selected').children[0].href); //当前页,也就是第一页
     let temp = document.querySelectorAll('.a-pagination .a-normal'); //第二页和第三页的url
     for (let url of temp) {
-        console.log(url);
+        //console.log(url);
         urls.push(url.children[0].href);
     }
-    console.dir(urls);
+    //console.dir(urls);
     //将url信息发给background
     return urls;
 }

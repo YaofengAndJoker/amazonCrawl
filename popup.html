@@ -6,15 +6,11 @@
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 	<style>
 	body {
-		font-family: 'Microsoft Yahei';
 		width: 200px;
 		min-height: 100px;
 	}
 	a {margin-right: 10px;}
-	#process_status{
-		color:#FF0000
-	}
-	#endtime{
+	#expiretime{
 		color:#FF00FF;
 	}
 	</style>
@@ -22,8 +18,8 @@
 <body>
 	<h3  >Amazon Data crawl状态</h3>
 	<form action="" id="user_control">
-	用户名(手机号):<br>
-	<input id="username" type="text" value="">
+	<br>
+		<label for="username">用户名(手机号):</label><input id="username" type="password" value="">
 	<br>
 	<!--密码:<br>
 	<input type="password" name="lastname" value="">
@@ -33,25 +29,20 @@
 	<br>
 	<p id="validcheck"></p>
 	</form> 	
-	<p id="endtime" >账号到期时间:</p>
+	<p id="expiretime" >账号到期时间:</p>
 	<a href="#" id="invoke_background_js">下载已经获取的数据</a>
 	<a href="#" id="open_url_usage">使用说明</a>
 	<p >反馈邮箱:  55154717@qq.com</p>
 	<a href="#" id="more_option">显示更多配置</a>
 	<div id="more_option_detail" style="display:none;">
 		<br>
-		<strong>一般任务并发数</strong><br>
-		<input id="works_number" type="text" value="10"><br>
-		<strong>评论获取并发数</strong><br>
-		<input id="works_number_reviews" type="text" value="3"><br>
-		<strong>一般任务等待间隔</strong><br>
-		<input id="works_time" type="text" value="10"><br>
-		<strong>评论获等待间隔</strong><br>
-		<input id="works_time_reviews" type="text" value="1000"><br>
-		<input type="checkbox" id="keep_haved" checked>开启断点续传<br/>	
+		<label for="works_number">一般任务并发数</label><input id="works_number" type="text" value="10"><br>
+		<label for="works_number_reviews">评论获取并发数</label><input id="works_number_reviews" type="text" value="3"><br>
+		<label for="works_time">一般任务等待间隔</label><input id="works_time" type="text" value="10"><br>
+		<label for="works_time_reviews">评论获等待间隔</label><input id="works_time_reviews" type="text" value="1000"><br>
+		<label for="keep_haved">开启断点续传</label><input type="checkbox" id="keep_haved" checked><br/>
 		<br>
-		<strong>限制每次获取的数量</strong><br>
-		<input id="batchsize" type="text" value="200"><br>		
+		<label for="batchsize">限制每次获取的数量</label><input id="batchsize" type="text" value="200"><br>
 		<br>
 		<a href="#" id="setWorkNumber">使设置生效</a>
 		<p id="setNumberStatus"></p>

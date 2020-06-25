@@ -30,7 +30,7 @@
         if ($date.split('-').length === 3) {} else {
             //"Reviewed in the United States on April 16, 2019".replace(/Reviewed in the United States on /,"")
             $date = $date.replace(/Reviewed in the United States on /, "");
-            var temp = new Date(Date.parse($date));
+            const temp = new Date(Date.parse($date));
             $date = `${temp.getFullYear()}-${temp.getMonth()+1}-${temp.getDate()}`;
         }
         const withBrand = $brand !== null ? ($brand.innerText) : '';

@@ -57,7 +57,7 @@ function extractProductsPage() {
         const asin = el.getAttribute('data-asin');
         if (asin === "" || asin === null)
             return;
-        const prices = [];
+        let prices = [];
         el.querySelectorAll(selectors.prices).forEach((p) => {
             prices.push(parseFloat(p.innerText.replace(/[^\d.-]/g, ''))); //删除$ ￥等金币符号,只保留数字和点以及正负号
         });
@@ -79,7 +79,7 @@ function extractProductsPage() {
                 originalPrice,
                 fromUrl: location.href,
                 keywords: args['k'].replace("+", " "),
-                page: args['page'] == undefined ? "1" : args['page'] //如果没有page参数,说明是第一页
+                page: args['page'] === undefined ? "1" : args['page'] //如果没有page参数,说明是第一页
 
             });
         } catch (error) {
