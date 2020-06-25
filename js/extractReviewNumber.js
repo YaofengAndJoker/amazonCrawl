@@ -38,11 +38,13 @@ function extractReviewNumber() {
     // extra : add brand info to product Item;
 
     let reviews = [];
-
+    let stringDate = new Date();
+    stringDate = `${stringDate.getFullYear()}/${stringDate.getMonth()+1}/${stringDate.getDate()}`;
     reviews.push({
         asin: asin,
         totalReviews: reviewNum,
-        rating: rating
+        rating: rating,
+        date: stringDate
     });
 
     return reviews;

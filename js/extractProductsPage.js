@@ -65,6 +65,8 @@ function extractProductsPage() {
         if (price === 0)
             return;
         let title_temp;
+        let stringDate = new Date();
+        stringDate = `${stringDate.getFullYear()}/${stringDate.getMonth()+1}/${stringDate.getDate()}`;
         try {
             title_temp = el.querySelector('h2').innerText.trim();
             results.push({
@@ -79,8 +81,8 @@ function extractProductsPage() {
                 originalPrice,
                 fromUrl: location.href,
                 keywords: args['k'].replace("+", " "),
-                page: args['page'] === undefined ? "1" : args['page'] //如果没有page参数,说明是第一页
-
+                page: args['page'] === undefined ? "1" : args['page'], //如果没有page参数,说明是第一页
+                date: stringDate
             });
         } catch (error) {
             // just ignore 

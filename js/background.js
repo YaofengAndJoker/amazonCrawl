@@ -53,7 +53,7 @@ function echo() {
 function setValidDate(data) {
     validDate = data;
     let parseDate = Date.parse(new Date(data["Expire"]));
-    let dateNow = Date.parse(new Date());
+    let dateNow = Date.parse(new Date()); //Date.parse得到的是时间戳    
     valid = parseDate > dateNow;
 }
 
@@ -112,7 +112,7 @@ async function getOnePageReviews(page, tabid) {
     return await awaitOneTabsExeScript(tabid);
 }
 
-function main_controlOnePage(asin, page) {
+function main_controlOnePage(asin, page, partion) {
     return new Promise(async(resolve, reject) => {
         let tempResult = [
             [-1, -1],
@@ -128,7 +128,7 @@ function main_controlOnePage(asin, page) {
         tabWithAsin[newTabsId[0]] = asin;
         let targetStart = new Date().getFullYear();
         //先找2020 2017
-        let data1 = await binarySearchYear(start, end, targetStart, newTabsId[0]);
+        let data1 = await binarySearchPartion(start, end, Date.parse(targetStart + "/1/1"), newTabsId[0]);
         if (data1[0] === -1) {
             delete(tabWithAsin[newTabsId[0]]);
             chrome.tabs.remove(newTabsId[0]);
@@ -136,7 +136,7 @@ function main_controlOnePage(asin, page) {
             return;
         }
         //然后夹逼找 2019 和 2018
-        let data2 = await binarySearchYear(start, end, targetStart - 3, newTabsId[0]);
+        let data2 = await binarySearchPartion(start, end, Date.parse((targetStart - 3) + "/1/1"), newTabsId[0]);
         if (data2[0] === -1) {
             delete(tabWithAsin[newTabsId[0]]);
             chrome.tabs.remove(newTabsId[0]);
@@ -147,7 +147,7 @@ function main_controlOnePage(asin, page) {
             start = data1[0];
         if (data2[0] !== -1)
             end = data2[0];
-        let data3 = await binarySearchYear(start, end, targetStart - 1, newTabsId[0]);
+        let data3 = await binarySearchPartion(start, end, Date.parse((targetStart - 1) + "/1/1"), newTabsId[0]);
         if (data3[0] === -1) {
             delete(tabWithAsin[newTabsId[0]]);
             chrome.tabs.remove(newTabsId[0]);
@@ -156,17 +156,25 @@ function main_controlOnePage(asin, page) {
         }
         if (data3[0] !== -1)
             start = data3[0];
-        let data4 = await binarySearchYear(start, end, targetStart - 2, newTabsId[0]);
+        let data4 = await binarySearchPartion(start, end, Date.parse((targetStart - 2) + "/1/1"), newTabsId[0]);
         if (data4[0] === -1) {
             delete(tabWithAsin[newTabsId[0]]);
             chrome.tabs.remove(newTabsId[0]);
             resolve(tempResult);
             return;
         }
-        resultAll.push(data1);
-        resultAll.push(data3);
-        resultAll.push(data4);
-        resultAll.push(data2);
+        let data5 = await binarySearchPartion(data1[0], data3[0], Date.parse(partion), newTabsId[0]);
+        if (data5[0] === -1) {
+            delete(tabWithAsin[newTabsId[0]]);
+            chrome.tabs.remove(newTabsId[0]);
+            resolve(tempResult);
+            return;
+        }
+        resultAll.push(data1); //2020
+        resultAll.push(data3); //2019
+        resultAll.push(data4); //2018
+        resultAll.push(data2); //2017
+        resultAll.push(data5); //2019 partion
         resultAll.push(asin);
         delete(tabWithAsin[newTabsId[0]]);
         chrome.tabs.remove(newTabsId[0]);
@@ -174,7 +182,8 @@ function main_controlOnePage(asin, page) {
     });
 }
 
-function binarySearchYear(start, end, targetYear, tabid) {
+
+function binarySearchPartion(start, end, target, tabid) {
     return new Promise(async(resolve, reject) => {
         let low = start;
         let high = end;
@@ -191,23 +200,23 @@ function binarySearchYear(start, end, targetYear, tabid) {
             }
             if (data.length >= 1)
                 data = data[0];
-            let dataFirst = parseInt(data[0].date.substr(0, 4));
-            let dataLast = parseInt(data[data.length - 1].date.substr(0, 4));
-            if (dataLast > targetYear) {
+            let dataFirst = Date.parse(data[0].date);
+            let dataLast = Date.parse(data[data.length - 1].date);
+            if (dataLast > target) {
                 low = mid + 1;
-            } else if (dataFirst >= targetYear && dataLast < targetYear) {
+            } else if (dataFirst >= target && dataLast < target) {
                 //2019 2018; 2020 2018
                 count = 0;
                 for (let index in data) {
-                    if (parseInt(data[index].date.substr(0, 4)) >= targetYear)
+                    if (Date.parse(data[index].date) >= target)
                         count = count + 1
                 }
                 break;
-            } else if (dataFirst < targetYear) {
+            } else if (dataFirst < target) {
                 high = mid - 1;
-            } else if (dataFirst === targetYear && dataLast === targetYear) {
+            } else if (dataFirst === target && dataLast === target) {
                 low = mid + 1;
-            } else if (dataFirst > targetYear && dataLast === targetYear) {
+            } else if (dataFirst > target && dataLast === target) {
                 low = mid + 1;
             }
         }
@@ -220,27 +229,26 @@ function binarySearchYear(start, end, targetYear, tabid) {
             resolve([mid, count]);
         } else {
             if (high < start) //exceed of range
-                resolve([1, 0]);
+                resolve([start, 0]);
             else if (low > end)
                 resolve([end, 10]);
-            else
+            else // 假如找2019，共两页 第一页都是2020 第二页2018 ，此时 low>high,那2019应该算第二页，而不是第一页
                 resolve([low, 0]); // high < low 
         }
     })
 }
 
-
 function DexieDBinit() { //https://dexie.org/docs/Version/Version.stores()
     if (db === undefined) { // database table operate just need once
         db = new Dexie("products_database");
         db.version(1).stores({
-            productsList: '&asin,title,url,image,rating,reviewUrl,totalReviews,price,originalPrice,fromUrl,keywords,page',
+            productsList: '&asin,title,url,image,rating,reviewUrl,totalReviews,price,originalPrice,fromUrl,keywords,page,date',
             reviewsList: '++,asin,name,rating,date,verified,title,body,votes,withHelpfulVotes,withBrand',
-            productCorrect: '&asin,totalReviews,rating',
+            productCorrect: '&asin,totalReviews,rating,date',
             /*修正评论数量*/
             earliestReview: '&asin,date',
             productDetail: '&asin,brand,upDate,sellerName',
-            reviewYears: '&asin,current,last,before,before2'
+            reviewYears: '&asin,current,last,before,before2,partion'
                 /*加一个保存进度的东西? 如何?*/
         });
     }
@@ -558,7 +566,8 @@ chrome.contextMenus.create({
         if (!keep_haved) {
             dataList = dataRaw;
         }
-        dataList.length = batchSize;
+        if (dataList.length > batchSize)
+            dataList.length = batchSize;
         //  dataList = [{ "asin": "B00K369OSU" }]; // for test
         //  dataList.length = 15  // for test
         let asinReviewsTask = new CreateTask(``, [], "js/extractReviewNumber.js", "productCorrect", (datas) => {
@@ -617,7 +626,8 @@ chrome.contextMenus.create({
         if (!keep_haved) {
             dataList = dataRaw;
         }
-        dataList.length = batchSize;
+        if (dataList.length > batchSize)
+            dataList.length = batchSize;
         let asinReviewsTask = new CreateTask(``, [], "js/extractEarliestReview.js", "earliestReview", (datas) => {
             return false; // don't need stop ,only one page
         }, (data) => {
@@ -746,7 +756,8 @@ chrome.contextMenus.create({
         if (!keep_haved) {
             dataList = dataRaw;
         }
-        dataList.length = batchSize;
+        if (dataList.length > batchSize)
+            dataList.length = batchSize;
         let asinReviewsTask = new CreateTask(``, [], "js/extractAsinDetail.js", "productDetail", (datas) => {
             return false; // don't need stop ,only one page
         }, (data) => {
@@ -803,7 +814,8 @@ chrome.contextMenus.create({
         if (!keep_haved) {
             dataList = dataRaw;
         }
-        dataList.length = batchSize;
+        if (dataList.length > batchSize)
+            dataList.length = batchSize;
         update_process(0);
         let mapTable = {};
         for (let data of dataList) { //create task for one asin
@@ -825,7 +837,10 @@ chrome.contextMenus.create({
                 let end = Math.ceil(dataList[index * NUM_OF_BIN_SEARCH + i]['totalReviews'] / 10);
                 if (end > 500)
                     end = 500;
-                let onePromise = main_controlOnePage(dataList[index * NUM_OF_BIN_SEARCH + i]['asin'], end);
+                let date = dataList[index * NUM_OF_BIN_SEARCH + i]['date'].split('/'); //"2020/6/25"
+                date[0] = (parseInt(date[0]) - 1) + "";
+                date = date.join("/");
+                let onePromise = main_controlOnePage(dataList[index * NUM_OF_BIN_SEARCH + i]['asin'], end, date);
                 allPromise.push(onePromise);
                 update_process(parseInt(100 * (index * NUM_OF_BIN_SEARCH + i) / dataList.length));
             }
@@ -860,7 +875,8 @@ chrome.contextMenus.create({
                     'current': (realResult[0]),
                     'last': (realResult[1] - realResult[0]),
                     'before': (realResult[2] - realResult[1]),
-                    'before2': (realResult[3] - realResult[2])
+                    'before2': (realResult[3] - realResult[2]),
+                    'partion': (realResult[1] - realResult[4])
                 });
             } //end of for
 
