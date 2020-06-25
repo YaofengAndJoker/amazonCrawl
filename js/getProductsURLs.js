@@ -1,5 +1,3 @@
-console.log("test haha");
-
 function getProductsURLs() {
     let urls = []; //爬取url列表,传给background
     //https://www.amazon.cn/s?k=phone+case&__mk_zh_CN=%E4%BA%9A%E9%A9%AC%E9%80%8A%E7%BD%91%E7%AB%99&qid=1582732414&ref=sr_pg_1

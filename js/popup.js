@@ -16,6 +16,7 @@ function echo() {
         document.getElementById("keep_haved").checked = true;
     else
         document.getElementById("keep_haved").checked = false;
+    document.getElementById("batchsize").value = loginDate["batchSize"];
 }
 echo();
 var invokebgbutton = document.getElementById("invoke_background_js");
@@ -47,6 +48,7 @@ setWorkNumberbutton.onclick = function() {
     let reviewsWorksNumber = parseInt(document.getElementById("works_number_reviews").value);
     let generalWorksTime = parseInt(document.getElementById("works_time").value);
     let reviewsWorksTime = parseInt(document.getElementById("works_time_reviews").value);
+    let batchSize = parseInt(document.getElementById("batchsize").value);
     if (isNaN(generalWorksNumber) || generalWorksNumber <= 0) {
         generalWorksNumber = 10;
     }
@@ -59,8 +61,11 @@ setWorkNumberbutton.onclick = function() {
     if (isNaN(reviewsWorksTime) || reviewsWorksTime <= 0) {
         reviewsWorksTime = 1000;
     }
+    if (isNaN(batchSize) || batchSize <= 0) {
+        batchSize = 200;
+    }
     let bg = chrome.extension.getBackgroundPage();
-    bg.setNumber(generalWorksNumber, reviewsWorksNumber, generalWorksTime, reviewsWorksTime, document.getElementById("keep_haved").checked);
+    bg.setNumber(generalWorksNumber, reviewsWorksNumber, generalWorksTime, reviewsWorksTime, document.getElementById("keep_haved").checked, batchSize);
     document.getElementById("setNumberStatus").innerText = "设置完成";
 };
 var openNewButton = document.getElementById("open_url_new_tab");

@@ -21,6 +21,7 @@ let waitTimeGeneral = 100;
 let reviewTime = 1000;
 let generalTime = 10;
 let keep_haved = true;
+let batchSize = 200;
 const wait = ms => new Promise((resolve, reject) => {
     setTimeout(() => {
         console.log(`wait ${ms}ms`);
@@ -33,12 +34,13 @@ function showPic() {
     showImage = showStyle = showFont = true; //恢复图片  CSS和font的显示
 }
 
-function setNumber(generalWorkers, reviewsWorkers, generalWorksTime, reviewsWorksTime, keep) {
+function setNumber(generalWorkers, reviewsWorkers, generalWorksTime, reviewsWorksTime, keep, size) {
     NUM_OF_WORKERS = generalWorkers;
     NUM_OF_BIN_SEARCH = reviewsWorkers;
     generalTime = generalWorksTime;
     reviewTime = reviewsWorksTime;
     keep_haved = keep;
+    batchSize = size;
 }
 
 function echo() {
@@ -47,6 +49,7 @@ function echo() {
     validDate["generalTime"] = generalTime;
     validDate["reviewTime"] = reviewTime;
     validDate["keep_haved"] = keep_haved;
+    validDate["batchSize"] = batchSize;
     return validDate;
 
 }
@@ -326,20 +329,26 @@ function awaitPageLoading() {
 }
 
 function afterGetDataFun(data, table_name, checkSaveCondition) {
-    if (data === undefined) { // 可能有一个页面加载超时了,得到是不是空数组,而是undefined
+    if (data === undefined || data == null) { // 可能有一个页面加载超时了,得到是不是空数组,而是undefined
         return false;
     }
-    if (data[0] === undefined)
+    let DataSaved;
+    if (data[0] === undefined) {
         console.log("没有抓取到数据");
-    let DataSaved = checkSaveCondition(data[0]);
-    db[table_name].bulkPut(DataSaved /*,['asin']*/ ).then(
-        () => {
-            console.log("data save end");
-        }
-    ).catch(function(error) {
-        console.error("Ooops: " + error);
-    });
-    return true;
+        DataSaved = [];
+        return false;
+    } else {
+        DataSaved = checkSaveCondition(data[0]);
+        db[table_name].bulkPut(DataSaved /*,['asin']*/ ).then(
+            () => {
+                console.log("data save end");
+            }
+        ).catch(function(error) {
+            console.error("Ooops: " + error);
+        });
+        return true;
+    }
+
 }
 
 function awaitOneTabsExeScript(tabid) {
@@ -390,7 +399,7 @@ function awaitTabsExeScript(tabsWithTask, extractor, afterGetDataFun, table_name
     });
 }
 
-function update_process(title, value) {
+function update_process(value) {
     chrome.browserAction.setBadgeText({ text: value + "%" });
 }
 
@@ -466,14 +475,14 @@ async function main_control(task, processInfo = true) {
     DexieDBinit();
     let newTabsId = await createTabs();
 
-    update_process("数据获取开始", 0);
+    update_process(0);
     // 依次给tabs分配任务,所有tab完成后,分配下一次任务
     currentURLIndex = 0;
     while (currentURLIndex < task.urls.length) {
         if (stopTask)
             break;
 
-        update_process("数据获取进度", parseInt(100 * (currentURLIndex + 1) / task.urls.length));
+        update_process(parseInt(100 * (currentURLIndex + 1) / task.urls.length));
         tabsWithTask = []; //清空一下,认为所有tab都没有任务
         for (let tabId of newTabsId) {
             if (currentURLIndex < task.urls.length) {
@@ -495,7 +504,7 @@ async function main_control(task, processInfo = true) {
     closeAllTabs(newTabsId);
 
 
-    update_process("数据获取完成", 100);
+    update_process(100);
 
 
 }
@@ -567,6 +576,7 @@ chrome.contextMenus.create({
         if (!keep_haved) {
             dataList = dataRaw;
         }
+        dataList.length = batchSize;
         //  dataList = [{ "asin": "B00K369OSU" }]; // for test
         //  dataList.length = 15  // for test
         let asinReviewsTask = new CreateTask(``, [], "js/extractReviewNumber.js", "productCorrect", (datas) => {
@@ -625,6 +635,7 @@ chrome.contextMenus.create({
         if (!keep_haved) {
             dataList = dataRaw;
         }
+        dataList.length = batchSize;
         let asinReviewsTask = new CreateTask(``, [], "js/extractEarliestReview.js", "earliestReview", (datas) => {
             return false; // don't need stop ,only one page
         }, (data) => {
@@ -662,7 +673,7 @@ chrome.contextMenus.create({
         showImage = showStyle = showFont = false; //屏蔽图片  CSS和font
         let currentYear = new Date().getFullYear();
         let dataList = await getDataList("productCorrect"); // 1. get asins
-        update_process(currentTabid, "Reviews数据获取开始");
+        update_process(0);
         for (let data of dataList) { //create task for one asin
             let asin = data['asin'];
             if (data['totalReviews'] === 0) { // skip no reviews asin
@@ -753,6 +764,7 @@ chrome.contextMenus.create({
         if (!keep_haved) {
             dataList = dataRaw;
         }
+        dataList.length = batchSize;
         let asinReviewsTask = new CreateTask(``, [], "js/extractAsinDetail.js", "productDetail", (datas) => {
             return false; // don't need stop ,only one page
         }, (data) => {
@@ -809,7 +821,8 @@ chrome.contextMenus.create({
         if (!keep_haved) {
             dataList = dataRaw;
         }
-        update_process("获取每年的评论统计数据获取开始", 1);
+        dataList.length = batchSize;
+        update_process(0);
         let mapTable = {}
         for (let data of dataList) { //create task for one asin
             mapTable[data['asin']] = data['totalReviews'];
@@ -832,7 +845,7 @@ chrome.contextMenus.create({
                     end = 500;
                 let onePromise = main_controlOnePage(dataList[index * NUM_OF_BIN_SEARCH + i]['asin'], end);
                 allPromise.push(onePromise);
-                update_process("获取每年的评论统计数据获取进度", parseInt(100 * (index * NUM_OF_BIN_SEARCH + i) / dataList.length));
+                update_process(parseInt(100 * (index * NUM_OF_BIN_SEARCH + i) / dataList.length));
             }
             let allResult = await Promise.all(allPromise); //reference https://www.jianshu.com/p/4b0ce07d6c2
 
@@ -879,7 +892,7 @@ chrome.contextMenus.create({
 
         }
         showImage = showStyle = showFont = true; //屏蔽图片  CSS和font
-        update_process("获取每年的评论统计数据获取完成", 100);
+        update_process(100);
         createNotify("5. 获取每年的评论统计数据获取完成", '', false);
     }
 

@@ -1,6 +1,4 @@
-﻿console.log("test haha");
-
-function extractItemReviewPage() {
+﻿function extractItemReviewPage() {
     /*
     const selectors = {  // copy from  extractSearResultPage
         pagination: '.a-section.a-spacing-small.a-spacing-top-small>span',
