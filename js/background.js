@@ -15,12 +15,15 @@ let MAX_ONE_PAGE_NUMBERS = 10;
 let REVIEW_YEAR_RANGE = 4;
 let tabWithAsin = {};
 let valid = false;
+let pageSize = 3;
 let validDate = {};
 let stopTask = false;
 let reviewTime = 1000;
 let generalTime = 10;
 let keep_haved = true;
 let batchSize = 200;
+chrome.browserAction.setBadgeText({ text: '' });
+chrome.browserAction.setBadgeBackgroundColor({ color: [0, 0, 0, 0] });
 const wait = ms => new Promise((resolve, reject) => {
     setTimeout(resolve, ms);
 });
@@ -30,13 +33,14 @@ function showPic() {
     showImage = showStyle = showFont = true; //恢复图片  CSS和font的显示
 }
 
-function setNumber(generalWorkers, reviewsWorkers, generalWorksTime, reviewsWorksTime, keep, size) {
+function setNumber(generalWorkers, reviewsWorkers, generalWorksTime, reviewsWorksTime, keep, size, psize) {
     NUM_OF_WORKERS = generalWorkers;
     NUM_OF_BIN_SEARCH = reviewsWorkers;
     generalTime = generalWorksTime;
     reviewTime = reviewsWorksTime;
     keep_haved = keep;
     batchSize = size;
+    pageSize = psize;
 }
 
 function echo() {
@@ -46,6 +50,7 @@ function echo() {
     validDate["reviewTime"] = reviewTime;
     validDate["keep_haved"] = keep_haved;
     validDate["batchSize"] = batchSize;
+    validDate["pageSize"] = pageSize;
     return validDate;
 
 }
@@ -517,7 +522,12 @@ chrome.contextMenus.create({
             return data; // filter data
         });
         productsTask.urls = await getUrls(currentTabid, productsTask.getURL);
-
+        if (productsTask.urls === null || productsTask.urls.length == 0) {
+            showImage = showStyle = showFont = true; //屏蔽图片  CSS和font
+            return;
+        }
+        if (productsTask.urls.length > pageSize)
+            productsTask.urls.length = pageSize;
         //获取url列表的方式抽出来,有的URL是由前端抓的,有的是background的数据库生成的;
 
         showImage = showStyle = showFont = false; //屏蔽图片  CSS和font
@@ -544,8 +554,10 @@ chrome.contextMenus.create({
         showImage = showStyle = showFont = false; //屏蔽图片  CSS和font
         //读取productCorrect，和productsList 集合做比较，如果集合相等，那说明做完了（注意剔除评论数为零的）；
         let dataRaw = await getDataList("productsList"); // 1. get asins
-        if (dataRaw.length === 0) {
-            createNotify("警告", "待完成任务数据数为零，请确认获取过商品列表", false);
+        if (dataRaw === null || dataRaw.length === 0) {
+            showImage = showStyle = showFont = true; //屏蔽图片  CSS和font
+            window.alert("警告,待完成任务数据数为零，请确认获取过商品列表");
+            return;
         }
         //做一下筛选，去掉价格和评论数为零的，以及已经获取到的
         let datahaved = await getDataList("productCorrect"); // 1. get asins
@@ -604,8 +616,10 @@ chrome.contextMenus.create({
         showImage = showStyle = showFont = false; //屏蔽图片  CSS和font
 
         let dataRaw = await getDataList("productCorrect"); // 1. get asins
-        if (dataRaw.length === 0) {
-            createNotify("警告", "待完成任务数据数为零，请确认获取过商品列表，并且修正过评论数", false);
+        if (dataRaw === null || dataRaw.length === 0) {
+            showImage = showStyle = showFont = true; //屏蔽图片  CSS和font
+            window.alert("警告待完成任务数据数为零，请确认获取过商品列表，并且修正过评论数");
+            return;
         }
         //做一下筛选，去掉价格和评论数为零的，以及已经获取到的
         let datahaved = await getDataList("earliestReview"); // 1. get asins
@@ -734,8 +748,10 @@ chrome.contextMenus.create({
         showImage = showStyle = showFont = false; //屏蔽图片  CSS和font
 
         let dataRaw = await getDataList("productsList"); // 1. get asins
-        if (dataRaw.length === 0) {
-            createNotify("警告", "待完成任务数据数为零，请确认获取过商品列表", false);
+        if (dataRaw === null || dataRaw.length === 0) {
+            showImage = showStyle = showFont = true; //屏蔽图片  CSS和font
+            window.alert("警告待完成任务数据数为零，请确认获取过商品列表");
+            return;
         }
         //做一下筛选，去掉价格和评论数为零的，以及已经获取到的
         let datahaved = await getDataList("productDetail"); // 1. get asins
@@ -792,8 +808,10 @@ chrome.contextMenus.create({
         }
 
         let dataRaw = await getDataList("productCorrect"); // 1. get asins
-        if (dataRaw.length === 0) {
-            createNotify("警告", "待完成任务数据数为零，请确认获取过商品列表，并且修正过评论数", false);
+        if (dataRaw === null || dataRaw.length === 0) {
+            showImage = showStyle = showFont = true; //屏蔽图片  CSS和font
+            window.alert("警告待完成任务数据数为零，请确认获取过商品列表，并且修正过评论数");
+            return;
         }
         //做一下筛选，去掉价格和评论数为零的，以及已经获取到的
         let datahaved = await getDataList("reviewYears"); // 1. get asins
@@ -905,6 +923,9 @@ chrome.contextMenus.create({
     "onclick": function() {
         clearDB();
         createNotify('数据清除完成', '', false);
+        chrome.windows.getCurrent({}, (currentWindow) => {
+            chrome.windows.remove(currentWindow.id);
+        });
     }
 
 });

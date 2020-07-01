@@ -14,6 +14,7 @@ function echo() {
     document.getElementById("works_time_reviews").value = loginDate["reviewTime"];
     document.getElementById("keep_haved").checked = !!loginDate["keep_haved"];
     document.getElementById("batchsize").value = loginDate["batchSize"];
+    document.getElementById("pagesize").value = loginDate["pageSize"];
 }
 echo();
 const invokebgButton = document.getElementById("invoke_background_js");
@@ -46,6 +47,7 @@ setWorkNumberbutton.onclick = function() {
     let generalWorksTime = parseInt(document.getElementById("works_time").value);
     let reviewsWorksTime = parseInt(document.getElementById("works_time_reviews").value);
     let batchSize = parseInt(document.getElementById("batchsize").value);
+    let pagesize = parseInt(document.getElementById("pagesize").value);
     if (isNaN(generalWorksNumber) || generalWorksNumber <= 0) {
         generalWorksNumber = 10;
     }
@@ -61,8 +63,11 @@ setWorkNumberbutton.onclick = function() {
     if (isNaN(batchSize) || batchSize <= 0) {
         batchSize = 200;
     }
+    if (isNaN(pagesize) || pagesize <= 0) {
+        pagesize = 3;
+    }
     let bg = chrome.extension.getBackgroundPage();
-    bg.setNumber(generalWorksNumber, reviewsWorksNumber, generalWorksTime, reviewsWorksTime, document.getElementById("keep_haved").checked, batchSize);
+    bg.setNumber(generalWorksNumber, reviewsWorksNumber, generalWorksTime, reviewsWorksTime, document.getElementById("keep_haved").checked, batchSize, pagesize);
     document.getElementById("setNumberStatus").innerText = "设置完成";
 };
 const openNewButton = document.getElementById("open_url_new_tab");
