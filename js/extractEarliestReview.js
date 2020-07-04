@@ -16,7 +16,7 @@ function extractEarliestReview() {
         }
         reviews.push({
             asin: asin,
-            date: $date,
+            earliest_date: $date,
         });
     });
     reviews.splice(0, reviews.length - 1);

@@ -69,23 +69,35 @@ function extractProductsPage() {
         stringDate = `${stringDate.getFullYear()}/${stringDate.getMonth()+1}/${stringDate.getDate()}`;
         try {
             title_temp = el.querySelector('h2').innerText.trim();
+            //'[asin],title,url,image,rating,reviewUrl,totalReviews,price,originalPrice,fromUrl,keywords,page,collect_date,earliest_date
+            //,brand,upDate,sellerName,current,last,before,before2,partion',            
             results.push({
                 asin,
                 title: title_temp,
                 url: $url.href, //.match(`(^.+${asin}).+`)[1],   // url 可能并没有包含asin,可能是个redirect
                 image: el.querySelector('.s-image').src,
-                rating: rating,
+                rating: -1,
                 reviewUrl: 'https://' + `${location.host}/product-reviews/${asin}`,
-                totalReviews: totalReviews,
+                totalReviews: -1,
                 price,
                 originalPrice,
                 fromUrl: location.href,
                 keywords: args['k'].replace("+", " "),
                 page: args['page'] === undefined ? "1" : args['page'], //如果没有page参数,说明是第一页
-                date: stringDate
+                collect_date: stringDate,
+                earliest_date: -1,
+                brand: -1,
+                upDate: -1,
+                sellerName: -1,
+                current: -1,
+                last: -1,
+                before: -1,
+                before2: -1,
+                partion: -1,
             });
         } catch (error) {
             // just ignore 
+            return results;
         }
 
     });

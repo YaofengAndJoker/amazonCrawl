@@ -254,16 +254,9 @@ function binarySearchPartion(start, end, target, tabid) {
 
 function DexieDBinit() { //https://dexie.org/docs/Version/Version.stores()
     if (db === undefined) { // database table operate just need once
-        db = new Dexie("products_database");
+        db = new Dexie("sp_database");
         db.version(1).stores({
-            productsList: '&asin,title,url,image,rating,reviewUrl,totalReviews,price,originalPrice,fromUrl,keywords,page,date',
-            reviewsList: '++,asin,name,rating,date,verified,title,body,votes,withHelpfulVotes,withBrand',
-            productCorrect: '&asin,totalReviews,rating,date',
-            /*修正评论数量*/
-            earliestReview: '&asin,date',
-            productDetail: '&asin,brand,upDate,sellerName',
-            reviewYears: '&asin,current,last,before,before2,partion'
-                /*加一个保存进度的东西? 如何?*/
+            productsList: '&asin,title,url,image,rating,reviewUrl,totalReviews,price,originalPrice,fromUrl,keywords,page,collect_date,earliest_date,brand,upDate,sellerName,current,last,before,before2,partion',
         });
     }
 }
@@ -272,11 +265,6 @@ function clearDB() {
     try {
         DexieDBinit();
         db.productsList.clear(); // after download dataset,also need clear table datas?
-        db.reviewsList.clear();
-        db.productCorrect.clear();
-        db.earliestReview.clear();
-        db.productDetail.clear();
-        db.reviewYears.clear();
         db.delete();
     } catch (error) {
         console.log("data clear failed");
@@ -348,13 +336,42 @@ function afterGetDataFun(data, table_name, checkSaveCondition) {
         return false;
     } else {
         DataSaved = checkSaveCondition(data[0]);
-        db[table_name].bulkPut(DataSaved /*,['asin']*/ ).then(
+        db[table_name].bulkPut(DataSaved).then(
             () => {
                 console.log("data save end");
             }
         ).catch(function(error) {
             console.error("Ooops: " + error);
         });
+        return true;
+    }
+}
+
+function afterGetDataFunUpdate(data, table_name, checkSaveCondition) {
+    if (data === undefined || data == null) { // 可能有一个页面加载超时了,得到是不是空数组,而是undefined
+        return false;
+    }
+    let DataSaved;
+    if (data[0] === undefined) {
+        console.log("没有抓取到数据");
+        return false;
+    } else {
+        DataSaved = checkSaveCondition(data[0]);
+        /*
+        db[table_name].bulkPut(DataSaved).then(
+            () => {
+                console.log("data save end");
+            }
+        ).catch(function(error) {
+            console.error("Ooops: " + error);
+        });*/
+
+        for (let item of DataSaved) {
+
+            let asin = item['asin'];
+            delete(item['asin']);
+            db[table_name].where("asin").equals(asin).modify(item);
+        }
         return true;
     }
 }
@@ -478,7 +495,7 @@ function createNotify(title, message, requireInteraction) {
 
 
 let currentURLIndex;
-async function main_control(task, processInfo = true) {
+async function main_control(task, update) {
     DexieDBinit();
     let newTabsId = await createTabs();
 
@@ -501,8 +518,11 @@ async function main_control(task, processInfo = true) {
             }
         }
         await awaitPageLoading(); //监听onUpdated  等待页面加载完成 awaitPageLoading每次都要再承诺一次(新建一个Promise)
-
-        let extractorDataArray = await awaitTabsExeScript(tabsWithTask, task.extractor, afterGetDataFun, task.table_name, task.checkSaveCondition);
+        let extractorDataArray;
+        if (update)
+            extractorDataArray = await awaitTabsExeScript(tabsWithTask, task.extractor, afterGetDataFunUpdate, task.table_name, task.checkSaveCondition);
+        else
+            extractorDataArray = await awaitTabsExeScript(tabsWithTask, task.extractor, afterGetDataFun, task.table_name, task.checkSaveCondition);
         if (task.checkstopCondition(extractorDataArray)) {
             break;
         }
@@ -549,7 +569,7 @@ chrome.contextMenus.create({
             host = currentTabidNew.url.split('/')[2];
         }
 
-        let dataRaw = await getDataList("productCorrect"); // 1. get asins
+        let dataRaw = await getDataList("productsList"); // 1. get asins
         if (dataRaw === null || dataRaw.length === 0) {
             showImage = showStyle = showFont = true; //屏蔽图片  CSS和font
             createNotify("警告", "待完成任务数据数为零，请确认获取过商品列表，并且修正过评论数", false);
@@ -557,24 +577,21 @@ chrome.contextMenus.create({
             return;
         }
         //做一下筛选，去掉价格和评论数为零的，以及已经获取到的
-        let datahaved = await getDataList("reviewYears"); // 1. get asins
         let dataList = [];
         for (let data of dataRaw) { //create task for one asin
-            if (data['totalReviews'] === 0) { // skip no reviews asin and price is 0 
-                continue;
+            if (data['totalReviews'] != 0 && data['totalReviews'] != -1 && data['current'] == -1) { // skip no reviews asin and price is 0 
+                dataList.push(data);
             }
-            let haveFlag = false;
-            for (let item of datahaved) {
-                if (item['asin'] === data['asin'])
-                    haveFlag = true;
-            }
-            if (haveFlag)
-                continue;
-            dataList.push(data);
         }
         if (!keep_haved) {
-            dataList = dataRaw;
+            dataList.length = 0;
+            for (let data of dataRaw) { //create task for one asin
+                if (data['totalReviews'] != 0 && data['totalReviews'] != -1) { // skip no reviews asin and price is 0 
+                    dataList.push(data);
+                }
+            }
         }
+        dataList = drop_variant(dataList);
         if (dataList.length > batchSize)
             dataList.length = batchSize;
         update_process(0);
@@ -598,7 +615,7 @@ chrome.contextMenus.create({
                 let end = Math.ceil(dataList[index * NUM_OF_BIN_SEARCH + i]['totalReviews'] / 10);
                 if (end > 500)
                     end = 500;
-                let date = dataList[index * NUM_OF_BIN_SEARCH + i]['date'].split('/'); //"2020/6/25"
+                let date = dataList[index * NUM_OF_BIN_SEARCH + i]['collect_date'].split('/'); //"2020/6/25"
                 date[0] = (parseInt(date[0]) - 1) + "";
                 date = date.join("/");
                 let onePromise = main_controlOnePage(dataList[index * NUM_OF_BIN_SEARCH + i]['asin'], end, date);
@@ -631,7 +648,7 @@ chrome.contextMenus.create({
                     }
                 }
                 //保存数据  ASIN  CURRENT LAST BEFORE BEFORE2
-                putDatabase.push({ //reviewYears:'&asin,current,last,before,before2'
+                putDatabase.push({ //'&asin,current,last,before,before2'
                     'asin': currentAsin,
                     'current': (realResult[0]),
                     'last': (realResult[1] - realResult[0]),
@@ -640,15 +657,22 @@ chrome.contextMenus.create({
                     'partion': (realResult[1] - realResult[4])
                 });
             } //end of for
+            //这里要修改
+            for (let item of putDatabase) {
 
-            db["reviewYears"].bulkPut(putDatabase /*,['asin']*/ ).then(
+                let asin = item['asin'];
+                delete(item['asin']);
+                db["productsList"].where("asin").equals(asin).modify(item);
+            }
+            /*
+            db["productsList"].bulkPut(putDatabase  ).then(
                 () => {
                     console.log("data save end");
                 }
             ).catch(function(error) {
                 console.error("Ooops: " + error);
             });
-
+            */
         }
         showImage = showStyle = showFont = true; //屏蔽图片  CSS和font
         isbusy = false;
@@ -687,27 +711,23 @@ chrome.contextMenus.create({
             return;
         }
         //做一下筛选，去掉价格和评论数为零的，以及已经获取到的
-        let datahaved = await getDataList("productDetail"); // 1. get asins
         let dataList = [];
         for (let data of dataRaw) { //create task for one asin
-            if (data['totalReviews'] === 0 || data['price'] === 0) { // skip no reviews asin and price is 0 
-                continue;
+            if (data['price'] != 0 && (data['brand'] === -1)) { // skip no reviews asin and price is 0 
+                dataList.push(data);
             }
-            let haveFlag = false;
-            for (let item of datahaved) {
-                if (item['asin'] === data['asin'])
-                    haveFlag = true;
-            }
-            if (haveFlag)
-                continue;
-            dataList.push(data);
         }
         if (!keep_haved) {
-            dataList = dataRaw;
+            dataList.length = 0;
+            for (let data of dataRaw) { //create task for one asin
+                if (data['price'] != 0) { // skip no reviews asin and price is 0 
+                    dataList.push(data);
+                }
+            }
         }
         if (dataList.length > batchSize)
             dataList.length = batchSize;
-        let asinReviewsTask = new CreateTask(``, [], "js/extractAsinDetail.js", "productDetail", (datas) => {
+        let asinReviewsTask = new CreateTask(``, [], "js/extractAsinDetail.js", "productsList", (datas) => {
             return false; // don't need stop ,only one page
         }, (data) => {
             return data; // don't filter any data
@@ -717,7 +737,7 @@ chrome.contextMenus.create({
             asinReviewsTask.urls = asinReviewsTask.urls.concat(getAsinDetailURL(asin));
             //asinReviewsTask.urls = ["https://www.amazon.cn/product-reviews/B00HU65SEU/?pageNumber=1&sortBy=recent"];
         }
-        await main_control(asinReviewsTask);
+        await main_control(asinReviewsTask, true);
         showImage = showStyle = showFont = true; //恢复图片  CSS和font的显示
         isbusy = false;
         createNotify("4. 获取商品详情页完成", '', false);
@@ -745,7 +765,7 @@ chrome.contextMenus.create({
         }
         showImage = showStyle = showFont = false; //屏蔽图片  CSS和font
 
-        let dataRaw = await getDataList("productCorrect"); // 1. get asins
+        let dataRaw = await getDataList("productsList"); // 1. get asins
         if (dataRaw === null || dataRaw.length === 0) {
             showImage = showStyle = showFont = true; //屏蔽图片  CSS和font
             createNotify("警告", "待完成任务数据数为零，请确认获取过商品列表，并且修正过评论数", false);
@@ -753,27 +773,26 @@ chrome.contextMenus.create({
             return;
         }
         //做一下筛选，去掉价格和评论数为零的，以及已经获取到的
-        let datahaved = await getDataList("earliestReview"); // 1. get asins
         let dataList = [];
         for (let data of dataRaw) { //create task for one asin
-            if (data['totalReviews'] === 0) { // skip no reviews asin and price is 0 
-                continue;
+            if (data['totalReviews'] != 0 && data['price'] != 0 && data['totalReviews'] != -1 && data['earliest_date'] === -1) { // skip no reviews asin and price is 0 
+                dataList.push(data);
             }
-            let haveFlag = false;
-            for (let item of datahaved) {
-                if (item['asin'] === data['asin'])
-                    haveFlag = true;
-            }
-            if (haveFlag)
-                continue;
-            dataList.push(data);
+        }
+        if (dataList.length == 0) {
+            createNotify("警告", "请确认获取过商品列表，并且修正过评论数", false);
         }
         if (!keep_haved) {
-            dataList = dataRaw;
+            dataList.length = 0;
+            for (let data of dataRaw) { //create task for one asin
+                if (data['totalReviews'] != 0 && data['price'] != 0 && data['totalReviews'] != -1) { // skip no reviews asin and price is 0 
+                    dataList.push(data);
+                }
+            }
         }
         if (dataList.length > batchSize)
             dataList.length = batchSize;
-        let asinReviewsTask = new CreateTask(``, [], "js/extractEarliestReview.js", "earliestReview", (datas) => {
+        let asinReviewsTask = new CreateTask(``, [], "js/extractEarliestReview.js", "productsList", (datas) => {
             return false; // don't need stop ,only one page
         }, (data) => {
             // only get the last one ,already filter in extractor
@@ -787,7 +806,7 @@ chrome.contextMenus.create({
             asinReviewsTask.urls = asinReviewsTask.urls.concat(getCertainReviewURLs(asin, Page));
             //asinReviewsTask.urls = ["https://www.amazon.cn/product-reviews/B00HU65SEU/?pageNumber=1&sortBy=recent"];
         }
-        await main_control(asinReviewsTask);
+        await main_control(asinReviewsTask, true);
         showImage = showStyle = showFont = true; //恢复图片  CSS和font的显示
         isbusy = false;
         createNotify('3. 获取商品最早的评论完成', '', false);
@@ -822,21 +841,16 @@ chrome.contextMenus.create({
             isbusy = false;
             return;
         }
+        //这里是为了获取 totalReviews rating
         //做一下筛选，去掉价格和评论数为零的，以及已经获取到的
-        let datahaved = await getDataList("productCorrect"); // 1. get asins
         let dataList = [];
         for (let data of dataRaw) { //create task for one asin
-            if (data['totalReviews'] === 0 || data['price'] === 0) { // skip no reviews asin and price is 0 
-                continue;
+            if (data['totalReviews'] === -1 || data['rating'] === -1) { // skip no reviews asin and price is 0 
+                dataList.push(data);
             }
-            let haveFlag = false;
-            for (let item of datahaved) {
-                if (item['asin'] === data['asin'])
-                    haveFlag = true;
-            }
-            if (haveFlag)
-                continue;
-            dataList.push(data);
+        }
+        if (dataList.length == 0) {
+            createNotify("警告", "请确认获取过商品列表", false);
         }
         if (!keep_haved) {
             dataList = dataRaw;
@@ -845,7 +859,7 @@ chrome.contextMenus.create({
             dataList.length = batchSize;
         //  dataList = [{ "asin": "B00K369OSU" }]; // for test
         //  dataList.length = 15  // for test
-        let asinReviewsTask = new CreateTask(``, [], "js/extractReviewNumber.js", "productCorrect", (datas) => {
+        let asinReviewsTask = new CreateTask(``, [], "js/extractReviewNumber.js", "productsList", (datas) => {
             return false; // don't need stop ,only one page
         }, (data) => {
             return data; // don't filter any data
@@ -857,7 +871,7 @@ chrome.contextMenus.create({
             asinReviewsTask.urls = asinReviewsTask.urls.concat(getReviewURLs(asin, totalPage));
             //asinReviewsTask.urls = ["https://www.amazon.cn/product-reviews/B00HU65SEU/?pageNumber=1&sortBy=recent"];
         }
-        await main_control(asinReviewsTask);
+        await main_control(asinReviewsTask, true);
         showImage = showStyle = showFont = true; //恢复图片  CSS和font的显示
         isbusy = false;
         createNotify('2. 修正商品评论数完成', '', false);
@@ -897,7 +911,7 @@ chrome.contextMenus.create({
         //获取url列表的方式抽出来,有的URL是由前端抓的,有的是background的数据库生成的;
 
         showImage = showStyle = showFont = false; //屏蔽图片  CSS和font
-        await main_control(productsTask);
+        await main_control(productsTask, false);
         showImage = showStyle = showFont = true; //恢复图片  CSS和font的显示
         isbusy = false;
         createNotify('1. 获取商品列表 完成', '', true);
@@ -1003,7 +1017,7 @@ function downloadFile(dataList, filename) {
         header: true,
         newline: "\r\n",
         skipEmptyLines: false, //or 'greedy',
-        columns: null //or array of strings
+        columns: ["collect_date", "keywords", "asin", "title", "price", "rating", "brand", /*"url", "image", "reviewUrl",*/ "upDate", "totalReviews", /*"originalPrice", "fromUrl", "page", */ "current", "last", "before", "before2", "partion", "earliest_date", "sellerName"] //or array of strings
     }; // dataList 里面如果出现#号,就会出错的
     var csv_content = Papa.unparse(dataList, config); // change dataList Array to csv File  use papaparse
     //https://stackoverflow.com/questions/54793997/export-indexeddb-object-store-to-csv
@@ -1020,6 +1034,17 @@ function downloadFile(dataList, filename) {
 
 }
 
+function drop_variant(dataList) {
+    let dictOfHave = {};
+    let dataFiltered = [];
+    for (let row of dataList) {
+        if (!dictOfHave.hasOwnProperty(row['brand'] + '_' + row['totalReviews'] + '_' + row['rating'])) {
+            dictOfHave[row['brand'] + '_' + row['totalReviews'] + '_' + row['rating']] = "h";
+            dataFiltered.push(row);
+        }
+    }
+    return dataFiltered;
+}
 
 // 预留一个方法给popup调用
 async function downloadDataBg() {
@@ -1029,19 +1054,25 @@ async function downloadDataBg() {
     }
 
     let stringDate = new Date();
-    stringDate = `${stringDate.getFullYear()}_${stringDate.getMonth()+1}_${stringDate.getDate()}`;
+    stringDate = `${stringDate.getFullYear()}_${stringDate.getMonth()+1}_${stringDate.getDate()}_${stringDate.getHours()}_${stringDate.getMinutes()}_${stringDate.getSeconds()}`;
     let dataList = await getDataList("productsList");
-    downloadFile(dataList, `productsList-${stringDate}.csv`);
-    //dataList = await getDataList("reviewsList");
-    //downloadFile(dataList, `reviewsList-${stringDate}.csv`);
-    dataList = await getDataList("productCorrect");
-    downloadFile(dataList, `productCorrect-${stringDate}.csv`);
-    dataList = await getDataList("earliestReview");
-    downloadFile(dataList, `earliestReview-${stringDate}.csv`);
-    dataList = await getDataList("productDetail");
-    downloadFile(dataList, `productDetail-${stringDate}.csv`);
-    dataList = await getDataList("reviewYears");
-    downloadFile(dataList, `reviewYears-${stringDate}.csv`);
+    /*处理一下，删除无效数据，以及删除变体商品*/
+    let datafiltered = [];
+    /*筛选条件，每一行数据中，不能出现-1，评论数不能为0，价格不为0*/
+    for (let row of dataList) {
+        let haveMinus1 = false;
+        for (let col in row) {
+            if (row[col] === -1) {
+                haveMinus1 = true;
+            }
+        }
+        if (row['totalReviews'] === -1 || row['price'] === 0)
+            continue;
+        if (!haveMinus1)
+            datafiltered.push(row);
+    }
+    datafiltered = drop_variant(datafiltered);
+    downloadFile(datafiltered, `productsList-${stringDate}.csv`);
 }
 
 

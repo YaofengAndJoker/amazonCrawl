@@ -1,7 +1,7 @@
 {
     "manifest_version": 2,
     "name": "Amazon精细化选品插件",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "description": "亚马逊精细化选品数据获取插件，在亚马逊网站鼠标右键单击，即可出现数据获取菜单。",
     "icons": {
         "16": "img/icon.png",
