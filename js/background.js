@@ -537,9 +537,10 @@ chrome.contextMenus.create({
     documentUrlPatterns: [
         "*://*.amazon.com/*", "*://*.amazon.cn/*", "*://*.amazon.ca/*", "*://*.amazon.in/*", "*://*.amazon.co.uk/*", "*://*.amazon.com.au/*", "*://*.amazon.de/*", "*://*.amazon.fr/*", "*://*.amazon.it/*", "*://*.amazon.es/*"
     ],
-    "onclick": function() {
+    "onclick": async function() {
         clearDB();
-        createNotify('数据清除完成', '', false);
+        createNotify('数据清除完成', '该操作后会关闭浏览器', false);
+        await wait(3000);
         chrome.windows.getCurrent({}, (currentWindow) => {
             chrome.windows.remove(currentWindow.id);
         });
@@ -1048,16 +1049,46 @@ function drop_variant(dataList) {
 
 // 预留一个方法给popup调用
 async function downloadDataBg() {
-    if (!checkValid()) {
-        createNotify('无法下载数据，请登录账号或查看有效日期', '', false);
-        return;
-    }
-
     let stringDate = new Date();
     stringDate = `${stringDate.getFullYear()}_${stringDate.getMonth()+1}_${stringDate.getDate()}_${stringDate.getHours()}_${stringDate.getMinutes()}_${stringDate.getSeconds()}`;
     let dataList = await getDataList("productsList");
+    if (!dataList.length) {
+        createNotify('没有执行过步骤1！请执行', '', false);
+        return;
+    }
     /*处理一下，删除无效数据，以及删除变体商品*/
     let datafiltered = [];
+    //判断一下具体是缺失哪种类型的数据
+    let miss2Array = dataList.filter((x) => {
+        //找到所有total review 不是-1的，如果数量大于1，说明是有效的，否则是无效的
+        return x['totalReviews'] != -1;
+    });
+    if (!miss2Array.length) {
+        createNotify('没有执行过步骤2！请执行', '', false);
+        return;
+    }
+    let miss3Array = dataList.filter((x) => {
+        //找到所有 earliest_date 不是-1的，如果数量大于1，说明是有效的，否则是无效的
+        return x['earliest_date'] != -1;
+    });
+    if (!miss3Array.length) {
+        createNotify('没有执行过步骤3！请执行', '', false);
+        return;
+    }
+    let miss4Array = dataList.filter((x) => {
+        return x['brand'] != -1;
+    });
+    if (!miss4Array.length) {
+        createNotify('没有执行过步骤4！请执行', '', false);
+        return;
+    }
+    let miss5Array = dataList.filter((x) => {
+        return x['current'] != -1;
+    });
+    if (!miss5Array.length) {
+        createNotify('没有执行过步骤5！请执行', '', false);
+        return;
+    }
     /*筛选条件，每一行数据中，不能出现-1，评论数不能为0，价格不为0*/
     for (let row of dataList) {
         let haveMinus1 = false;
@@ -1072,7 +1103,18 @@ async function downloadDataBg() {
             datafiltered.push(row);
     }
     datafiltered = drop_variant(datafiltered);
-    downloadFile(datafiltered, `productsList-${stringDate}.csv`);
+    if (datafiltered.length == 0) {
+        createNotify('数据文件大小为零，确定有按照12345来获取过数据吗？', '', false);
+    } else {
+        if (!checkValid()) {
+            createNotify('未登录账号只能下载10条数据喔！', '', false);
+            if (datafiltered.length > 10)
+                datafiltered.length = 10;
+            downloadFile(datafiltered, `productsList-${stringDate}.csv`);
+        } else {
+            downloadFile(datafiltered, `productsList-${stringDate}.csv`);
+        }
+    }
 }
 
 
