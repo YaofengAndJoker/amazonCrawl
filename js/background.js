@@ -531,21 +531,242 @@ async function main_control(task, update) {
     closeAllTabs(newTabsId);
     update_process(100);
 }
+
 chrome.contextMenus.create({
-    "title": "删除之前获取的数据",
+    "title": "1. 获取商品列表",
     "contexts": ["page", "all"],
     documentUrlPatterns: [
         "*://*.amazon.com/*", "*://*.amazon.cn/*", "*://*.amazon.ca/*", "*://*.amazon.in/*", "*://*.amazon.co.uk/*", "*://*.amazon.com.au/*", "*://*.amazon.de/*", "*://*.amazon.fr/*", "*://*.amazon.it/*", "*://*.amazon.es/*"
     ],
     "onclick": async function() {
-        clearDB();
-        createNotify('数据清除完成', '该操作后会关闭浏览器', false);
-        await wait(3000);
-        chrome.windows.getCurrent({}, (currentWindow) => {
-            chrome.windows.remove(currentWindow.id);
+        if (isbusy) {
+            createNotify("警告", "有其他任务在执行，请等待其他任务执行完成", false);
+            return;
+        }
+        isbusy = true;
+        chrome.browserAction.setBadgeBackgroundColor({ color: [255, 0, 0, 255] });
+        stopTask = false;
+        let currentTabidNew = await getCurrentTabidNew(); ////B08531YD3D  11  B074T8NYKW 169
+        currentTabid = currentTabidNew.id;
+        host = currentTabidNew.url.split('/')[2];
+        let productsTask = new CreateTask("js/getProductsURLs.js", [], "js/extractProductsPage.js", "productsList", (datas) => {
+            return false;
+        }, (data) => {
+            return data; // filter data
         });
-    }
+        productsTask.urls = await getUrls(currentTabid, productsTask.getURL);
+        if (productsTask.urls === null || productsTask.urls.length == 0) {
+            showImage = showStyle = showFont = true; //屏蔽图片  CSS和font
+            isbusy = false;
+            return;
+        }
+        if (productsTask.urls.length > pageSize)
+            productsTask.urls.length = pageSize;
+        //获取url列表的方式抽出来,有的URL是由前端抓的,有的是background的数据库生成的;
 
+        showImage = showStyle = showFont = false; //屏蔽图片  CSS和font
+        await main_control(productsTask, false);
+        showImage = showStyle = showFont = true; //恢复图片  CSS和font的显示
+        isbusy = false;
+        createNotify('1. 获取商品列表 完成', '', true);
+
+    }
+});
+
+chrome.contextMenus.create({
+    "title": "2. 修正商品评论数",
+    "contexts": ["page", "all"],
+    documentUrlPatterns: [
+        "*://*.amazon.com/*", "*://*.amazon.cn/*", "*://*.amazon.ca/*", "*://*.amazon.in/*", "*://*.amazon.co.uk/*", "*://*.amazon.com.au/*", "*://*.amazon.de/*", "*://*.amazon.fr/*", "*://*.amazon.it/*", "*://*.amazon.es/*"
+    ],
+    "onclick": async function() {
+        if (isbusy) {
+            createNotify("警告", "有其他任务在执行，请等待其他任务执行完成", false);
+            return;
+        }
+        isbusy = true;
+        chrome.browserAction.setBadgeBackgroundColor({ color: [0, 255, 0, 255] });
+        stopTask = false;
+        if (currentTabid === undefined || host === "") {
+            let currentTabidNew = await getCurrentTabidNew(); ////B08531YD3D  11  B074T8NYKW 169
+            currentTabid = currentTabidNew.id;
+            host = currentTabidNew.url.split('/')[2];
+        }
+        showImage = showStyle = showFont = false; //屏蔽图片  CSS和font
+        //读取productCorrect，和productsList 集合做比较，如果集合相等，那说明做完了（注意剔除评论数为零的）；
+        let dataRaw = await getDataList("productsList"); // 1. get asins
+        if (dataRaw === null || dataRaw.length === 0) {
+            showImage = showStyle = showFont = true; //屏蔽图片  CSS和font
+            createNotify("警告", "待完成任务数据数为零，请确认获取过商品列表", false);
+            isbusy = false;
+            return;
+        }
+        //这里是为了获取 totalReviews rating
+        //做一下筛选，去掉价格和评论数为零的，以及已经获取到的
+        let dataList = [];
+        for (let data of dataRaw) { //create task for one asin
+            if (data['totalReviews'] === -1 || data['rating'] === -1) { // skip no reviews asin and price is 0 
+                dataList.push(data);
+            }
+        }
+        if (dataList.length == 0) {
+            createNotify("警告", "请确认获取过商品列表", false);
+        }
+        if (!keep_haved) {
+            dataList = dataRaw;
+        }
+        if (dataList.length > batchSize)
+            dataList.length = batchSize;
+        //  dataList = [{ "asin": "B00K369OSU" }]; // for test
+        //  dataList.length = 15  // for test
+        let asinReviewsTask = new CreateTask(``, [], "js/extractReviewNumber.js", "productsList", (datas) => {
+            return false; // don't need stop ,only one page
+        }, (data) => {
+            return data; // don't filter any data
+        });
+        for (let data of dataList) { //create task for one asin
+            let asin = data['asin'];
+            const totalPage = 1; //为获得reviews的数量,只看第一页就有的
+
+            asinReviewsTask.urls = asinReviewsTask.urls.concat(getReviewURLs(asin, totalPage));
+            //asinReviewsTask.urls = ["https://www.amazon.cn/product-reviews/B00HU65SEU/?pageNumber=1&sortBy=recent"];
+        }
+        await main_control(asinReviewsTask, true);
+        showImage = showStyle = showFont = true; //恢复图片  CSS和font的显示
+        isbusy = false;
+        createNotify('2. 修正商品评论数完成', '', false);
+    }
+});
+
+chrome.contextMenus.create({
+    "title": "3. 获取商品最早的评论",
+    "contexts": ["page", "all"],
+    documentUrlPatterns: [
+        "*://*.amazon.com/*", "*://*.amazon.cn/*", "*://*.amazon.ca/*", "*://*.amazon.in/*", "*://*.amazon.co.uk/*", "*://*.amazon.com.au/*", "*://*.amazon.de/*", "*://*.amazon.fr/*", "*://*.amazon.it/*", "*://*.amazon.es/*"
+    ],
+    "onclick": async function() {
+        if (isbusy) {
+            createNotify("警告", "有其他任务在执行，请等待其他任务执行完成", false);
+            return;
+        }
+        isbusy = true;
+        stopTask = false;
+        chrome.browserAction.setBadgeBackgroundColor({ color: [0, 0, 255, 255] });
+        if (currentTabid === undefined || host === "") {
+            let currentTabidNew = await getCurrentTabidNew(); ////B08531YD3D  11  B074T8NYKW 169
+            currentTabid = currentTabidNew.id;
+            host = currentTabidNew.url.split('/')[2];
+        }
+        showImage = showStyle = showFont = false; //屏蔽图片  CSS和font
+
+        let dataRaw = await getDataList("productsList"); // 1. get asins
+        if (dataRaw === null || dataRaw.length === 0) {
+            showImage = showStyle = showFont = true; //屏蔽图片  CSS和font
+            createNotify("警告", "待完成任务数据数为零，请确认获取过商品列表，并且修正过评论数", false);
+            isbusy = false;
+            return;
+        }
+        //做一下筛选，去掉价格和评论数为零的，以及已经获取到的
+        let dataList = [];
+        for (let data of dataRaw) { //create task for one asin
+            if (data['totalReviews'] != 0 && data['price'] != 0 && data['totalReviews'] != -1 && data['earliest_date'] === -1) { // skip no reviews asin and price is 0 
+                dataList.push(data);
+            }
+        }
+        if (dataList.length == 0) {
+            createNotify("警告", "请确认获取过商品列表，并且修正过评论数", false);
+        }
+        if (!keep_haved) {
+            dataList.length = 0;
+            for (let data of dataRaw) { //create task for one asin
+                if (data['totalReviews'] != 0 && data['price'] != 0 && data['totalReviews'] != -1) { // skip no reviews asin and price is 0 
+                    dataList.push(data);
+                }
+            }
+        }
+        if (dataList.length > batchSize)
+            dataList.length = batchSize;
+        let asinReviewsTask = new CreateTask(``, [], "js/extractEarliestReview.js", "productsList", (datas) => {
+            return false; // don't need stop ,only one page
+        }, (data) => {
+            // only get the last one ,already filter in extractor
+            return data; // don't filter any data
+        });
+
+        for (let data of dataList) { //create task for one asin
+            let asin = data['asin'];
+            const Page = Math.ceil(data['totalReviews'] / MAX_ONE_PAGE_NUMBERS); //为获得reviews的数量,只看第一页就有的
+
+            asinReviewsTask.urls = asinReviewsTask.urls.concat(getCertainReviewURLs(asin, Page));
+            //asinReviewsTask.urls = ["https://www.amazon.cn/product-reviews/B00HU65SEU/?pageNumber=1&sortBy=recent"];
+        }
+        await main_control(asinReviewsTask, true);
+        showImage = showStyle = showFont = true; //恢复图片  CSS和font的显示
+        isbusy = false;
+        createNotify('3. 获取商品最早的评论完成', '', false);
+    }
+});
+
+chrome.contextMenus.create({
+    "title": "4. 获取商品详情页",
+    "contexts": ["page", "all"],
+    documentUrlPatterns: [
+        "*://*.amazon.com/*", "*://*.amazon.cn/*", "*://*.amazon.ca/*", "*://*.amazon.in/*", "*://*.amazon.co.uk/*", "*://*.amazon.com.au/*", "*://*.amazon.de/*", "*://*.amazon.fr/*", "*://*.amazon.it/*", "*://*.amazon.es/*"
+    ],
+    "onclick": async function() {
+        if (isbusy) {
+            createNotify("警告", "有其他任务在执行，请等待其他任务执行完成", false);
+            return;
+        }
+        isbusy = true;
+        stopTask = false;
+        chrome.browserAction.setBadgeBackgroundColor({ color: [255, 125, 0, 255] });
+        if (currentTabid === undefined || host === "") {
+            let currentTabidNew = await getCurrentTabidNew(); ////B08531YD3D  11  B074T8NYKW 169
+            currentTabid = currentTabidNew.id;
+            host = currentTabidNew.url.split('/')[2];
+        }
+        showImage = showStyle = showFont = false; //屏蔽图片  CSS和font
+
+        let dataRaw = await getDataList("productsList"); // 1. get asins
+        if (dataRaw === null || dataRaw.length === 0) {
+            showImage = showStyle = showFont = true; //屏蔽图片  CSS和font
+            createNotify("警告", "待完成任务数据数为零，请确认获取过商品列表", false);
+            isbusy = false;
+            return;
+        }
+        //做一下筛选，去掉价格和评论数为零的，以及已经获取到的
+        let dataList = [];
+        for (let data of dataRaw) { //create task for one asin
+            if (data['price'] != 0 && (data['brand'] === -1)) { // skip no reviews asin and price is 0 
+                dataList.push(data);
+            }
+        }
+        if (!keep_haved) {
+            dataList.length = 0;
+            for (let data of dataRaw) { //create task for one asin
+                if (data['price'] != 0) { // skip no reviews asin and price is 0 
+                    dataList.push(data);
+                }
+            }
+        }
+        if (dataList.length > batchSize)
+            dataList.length = batchSize;
+        let asinReviewsTask = new CreateTask(``, [], "js/extractAsinDetail.js", "productsList", (datas) => {
+            return false; // don't need stop ,only one page
+        }, (data) => {
+            return data; // don't filter any data
+        });
+        for (let data of dataList) { //create task for one asin
+            let asin = data['asin'];
+            asinReviewsTask.urls = asinReviewsTask.urls.concat(getAsinDetailURL(asin));
+            //asinReviewsTask.urls = ["https://www.amazon.cn/product-reviews/B00HU65SEU/?pageNumber=1&sortBy=recent"];
+        }
+        await main_control(asinReviewsTask, true);
+        showImage = showStyle = showFont = true; //恢复图片  CSS和font的显示
+        isbusy = false;
+        createNotify("4. 获取商品详情页完成", '', false);
+    }
 });
 
 chrome.contextMenus.create({
@@ -684,243 +905,21 @@ chrome.contextMenus.create({
 });
 
 chrome.contextMenus.create({
-    "title": "4. 获取商品详情页",
+    "title": "删除之前获取的数据",
     "contexts": ["page", "all"],
     documentUrlPatterns: [
         "*://*.amazon.com/*", "*://*.amazon.cn/*", "*://*.amazon.ca/*", "*://*.amazon.in/*", "*://*.amazon.co.uk/*", "*://*.amazon.com.au/*", "*://*.amazon.de/*", "*://*.amazon.fr/*", "*://*.amazon.it/*", "*://*.amazon.es/*"
     ],
     "onclick": async function() {
-        if (isbusy) {
-            createNotify("警告", "有其他任务在执行，请等待其他任务执行完成", false);
-            return;
-        }
-        isbusy = true;
-        stopTask = false;
-        chrome.browserAction.setBadgeBackgroundColor({ color: [255, 125, 0, 255] });
-        if (currentTabid === undefined || host === "") {
-            let currentTabidNew = await getCurrentTabidNew(); ////B08531YD3D  11  B074T8NYKW 169
-            currentTabid = currentTabidNew.id;
-            host = currentTabidNew.url.split('/')[2];
-        }
-        showImage = showStyle = showFont = false; //屏蔽图片  CSS和font
-
-        let dataRaw = await getDataList("productsList"); // 1. get asins
-        if (dataRaw === null || dataRaw.length === 0) {
-            showImage = showStyle = showFont = true; //屏蔽图片  CSS和font
-            createNotify("警告", "待完成任务数据数为零，请确认获取过商品列表", false);
-            isbusy = false;
-            return;
-        }
-        //做一下筛选，去掉价格和评论数为零的，以及已经获取到的
-        let dataList = [];
-        for (let data of dataRaw) { //create task for one asin
-            if (data['price'] != 0 && (data['brand'] === -1)) { // skip no reviews asin and price is 0 
-                dataList.push(data);
-            }
-        }
-        if (!keep_haved) {
-            dataList.length = 0;
-            for (let data of dataRaw) { //create task for one asin
-                if (data['price'] != 0) { // skip no reviews asin and price is 0 
-                    dataList.push(data);
-                }
-            }
-        }
-        if (dataList.length > batchSize)
-            dataList.length = batchSize;
-        let asinReviewsTask = new CreateTask(``, [], "js/extractAsinDetail.js", "productsList", (datas) => {
-            return false; // don't need stop ,only one page
-        }, (data) => {
-            return data; // don't filter any data
+        clearDB();
+        createNotify('数据清除完成', '该操作后会关闭浏览器', false);
+        await wait(3000);
+        chrome.windows.getCurrent({}, (currentWindow) => {
+            chrome.windows.remove(currentWindow.id);
         });
-        for (let data of dataList) { //create task for one asin
-            let asin = data['asin'];
-            asinReviewsTask.urls = asinReviewsTask.urls.concat(getAsinDetailURL(asin));
-            //asinReviewsTask.urls = ["https://www.amazon.cn/product-reviews/B00HU65SEU/?pageNumber=1&sortBy=recent"];
-        }
-        await main_control(asinReviewsTask, true);
-        showImage = showStyle = showFont = true; //恢复图片  CSS和font的显示
-        isbusy = false;
-        createNotify("4. 获取商品详情页完成", '', false);
     }
+
 });
-
-chrome.contextMenus.create({
-    "title": "3. 获取商品最早的评论",
-    "contexts": ["page", "all"],
-    documentUrlPatterns: [
-        "*://*.amazon.com/*", "*://*.amazon.cn/*", "*://*.amazon.ca/*", "*://*.amazon.in/*", "*://*.amazon.co.uk/*", "*://*.amazon.com.au/*", "*://*.amazon.de/*", "*://*.amazon.fr/*", "*://*.amazon.it/*", "*://*.amazon.es/*"
-    ],
-    "onclick": async function() {
-        if (isbusy) {
-            createNotify("警告", "有其他任务在执行，请等待其他任务执行完成", false);
-            return;
-        }
-        isbusy = true;
-        stopTask = false;
-        chrome.browserAction.setBadgeBackgroundColor({ color: [0, 0, 255, 255] });
-        if (currentTabid === undefined || host === "") {
-            let currentTabidNew = await getCurrentTabidNew(); ////B08531YD3D  11  B074T8NYKW 169
-            currentTabid = currentTabidNew.id;
-            host = currentTabidNew.url.split('/')[2];
-        }
-        showImage = showStyle = showFont = false; //屏蔽图片  CSS和font
-
-        let dataRaw = await getDataList("productsList"); // 1. get asins
-        if (dataRaw === null || dataRaw.length === 0) {
-            showImage = showStyle = showFont = true; //屏蔽图片  CSS和font
-            createNotify("警告", "待完成任务数据数为零，请确认获取过商品列表，并且修正过评论数", false);
-            isbusy = false;
-            return;
-        }
-        //做一下筛选，去掉价格和评论数为零的，以及已经获取到的
-        let dataList = [];
-        for (let data of dataRaw) { //create task for one asin
-            if (data['totalReviews'] != 0 && data['price'] != 0 && data['totalReviews'] != -1 && data['earliest_date'] === -1) { // skip no reviews asin and price is 0 
-                dataList.push(data);
-            }
-        }
-        if (dataList.length == 0) {
-            createNotify("警告", "请确认获取过商品列表，并且修正过评论数", false);
-        }
-        if (!keep_haved) {
-            dataList.length = 0;
-            for (let data of dataRaw) { //create task for one asin
-                if (data['totalReviews'] != 0 && data['price'] != 0 && data['totalReviews'] != -1) { // skip no reviews asin and price is 0 
-                    dataList.push(data);
-                }
-            }
-        }
-        if (dataList.length > batchSize)
-            dataList.length = batchSize;
-        let asinReviewsTask = new CreateTask(``, [], "js/extractEarliestReview.js", "productsList", (datas) => {
-            return false; // don't need stop ,only one page
-        }, (data) => {
-            // only get the last one ,already filter in extractor
-            return data; // don't filter any data
-        });
-
-        for (let data of dataList) { //create task for one asin
-            let asin = data['asin'];
-            const Page = Math.ceil(data['totalReviews'] / MAX_ONE_PAGE_NUMBERS); //为获得reviews的数量,只看第一页就有的
-
-            asinReviewsTask.urls = asinReviewsTask.urls.concat(getCertainReviewURLs(asin, Page));
-            //asinReviewsTask.urls = ["https://www.amazon.cn/product-reviews/B00HU65SEU/?pageNumber=1&sortBy=recent"];
-        }
-        await main_control(asinReviewsTask, true);
-        showImage = showStyle = showFont = true; //恢复图片  CSS和font的显示
-        isbusy = false;
-        createNotify('3. 获取商品最早的评论完成', '', false);
-    }
-});
-
-chrome.contextMenus.create({
-    "title": "2. 修正商品评论数",
-    "contexts": ["page", "all"],
-    documentUrlPatterns: [
-        "*://*.amazon.com/*", "*://*.amazon.cn/*", "*://*.amazon.ca/*", "*://*.amazon.in/*", "*://*.amazon.co.uk/*", "*://*.amazon.com.au/*", "*://*.amazon.de/*", "*://*.amazon.fr/*", "*://*.amazon.it/*", "*://*.amazon.es/*"
-    ],
-    "onclick": async function() {
-        if (isbusy) {
-            createNotify("警告", "有其他任务在执行，请等待其他任务执行完成", false);
-            return;
-        }
-        isbusy = true;
-        chrome.browserAction.setBadgeBackgroundColor({ color: [0, 255, 0, 255] });
-        stopTask = false;
-        if (currentTabid === undefined || host === "") {
-            let currentTabidNew = await getCurrentTabidNew(); ////B08531YD3D  11  B074T8NYKW 169
-            currentTabid = currentTabidNew.id;
-            host = currentTabidNew.url.split('/')[2];
-        }
-        showImage = showStyle = showFont = false; //屏蔽图片  CSS和font
-        //读取productCorrect，和productsList 集合做比较，如果集合相等，那说明做完了（注意剔除评论数为零的）；
-        let dataRaw = await getDataList("productsList"); // 1. get asins
-        if (dataRaw === null || dataRaw.length === 0) {
-            showImage = showStyle = showFont = true; //屏蔽图片  CSS和font
-            createNotify("警告", "待完成任务数据数为零，请确认获取过商品列表", false);
-            isbusy = false;
-            return;
-        }
-        //这里是为了获取 totalReviews rating
-        //做一下筛选，去掉价格和评论数为零的，以及已经获取到的
-        let dataList = [];
-        for (let data of dataRaw) { //create task for one asin
-            if (data['totalReviews'] === -1 || data['rating'] === -1) { // skip no reviews asin and price is 0 
-                dataList.push(data);
-            }
-        }
-        if (dataList.length == 0) {
-            createNotify("警告", "请确认获取过商品列表", false);
-        }
-        if (!keep_haved) {
-            dataList = dataRaw;
-        }
-        if (dataList.length > batchSize)
-            dataList.length = batchSize;
-        //  dataList = [{ "asin": "B00K369OSU" }]; // for test
-        //  dataList.length = 15  // for test
-        let asinReviewsTask = new CreateTask(``, [], "js/extractReviewNumber.js", "productsList", (datas) => {
-            return false; // don't need stop ,only one page
-        }, (data) => {
-            return data; // don't filter any data
-        });
-        for (let data of dataList) { //create task for one asin
-            let asin = data['asin'];
-            const totalPage = 1; //为获得reviews的数量,只看第一页就有的
-
-            asinReviewsTask.urls = asinReviewsTask.urls.concat(getReviewURLs(asin, totalPage));
-            //asinReviewsTask.urls = ["https://www.amazon.cn/product-reviews/B00HU65SEU/?pageNumber=1&sortBy=recent"];
-        }
-        await main_control(asinReviewsTask, true);
-        showImage = showStyle = showFont = true; //恢复图片  CSS和font的显示
-        isbusy = false;
-        createNotify('2. 修正商品评论数完成', '', false);
-    }
-});
-
-chrome.contextMenus.create({
-    "title": "1. 获取商品列表",
-    "contexts": ["page", "all"],
-    documentUrlPatterns: [
-        "*://*.amazon.com/*", "*://*.amazon.cn/*", "*://*.amazon.ca/*", "*://*.amazon.in/*", "*://*.amazon.co.uk/*", "*://*.amazon.com.au/*", "*://*.amazon.de/*", "*://*.amazon.fr/*", "*://*.amazon.it/*", "*://*.amazon.es/*"
-    ],
-    "onclick": async function() {
-        if (isbusy) {
-            createNotify("警告", "有其他任务在执行，请等待其他任务执行完成", false);
-            return;
-        }
-        isbusy = true;
-        chrome.browserAction.setBadgeBackgroundColor({ color: [255, 0, 0, 255] });
-        stopTask = false;
-        let currentTabidNew = await getCurrentTabidNew(); ////B08531YD3D  11  B074T8NYKW 169
-        currentTabid = currentTabidNew.id;
-        host = currentTabidNew.url.split('/')[2];
-        let productsTask = new CreateTask("js/getProductsURLs.js", [], "js/extractProductsPage.js", "productsList", (datas) => {
-            return false;
-        }, (data) => {
-            return data; // filter data
-        });
-        productsTask.urls = await getUrls(currentTabid, productsTask.getURL);
-        if (productsTask.urls === null || productsTask.urls.length == 0) {
-            showImage = showStyle = showFont = true; //屏蔽图片  CSS和font
-            isbusy = false;
-            return;
-        }
-        if (productsTask.urls.length > pageSize)
-            productsTask.urls.length = pageSize;
-        //获取url列表的方式抽出来,有的URL是由前端抓的,有的是background的数据库生成的;
-
-        showImage = showStyle = showFont = false; //屏蔽图片  CSS和font
-        await main_control(productsTask, false);
-        showImage = showStyle = showFont = true; //恢复图片  CSS和font的显示
-        isbusy = false;
-        createNotify('1. 获取商品列表 完成', '', true);
-
-    }
-});
-
-
 //旧方法  废弃不用
 // 修正review的数量和星级,因为商品列表的不准,有时候代表是是亚马逊美国  评论数为0,不需要修正
 // 获取最早评论时间(该任务依赖review数的正确性)     评论数为0,不需要获取
