@@ -356,14 +356,6 @@ function afterGetDataFunUpdate(data, table_name, checkSaveCondition) {
         return false;
     } else {
         DataSaved = checkSaveCondition(data[0]);
-        /*
-        db[table_name].bulkPut(DataSaved).then(
-            () => {
-                console.log("data save end");
-            }
-        ).catch(function(error) {
-            console.error("Ooops: " + error);
-        });*/
 
         for (let item of DataSaved) {
 
@@ -1012,7 +1004,7 @@ function downloadFile(dataList, filename) {
         header: true,
         newline: "\r\n",
         skipEmptyLines: false, //or 'greedy',
-        columns: ["collect_date", "keywords", "asin", "title", "price", "rating", "brand", /*"url", "image", "reviewUrl",*/ "upDate", "totalReviews", /*"originalPrice", "fromUrl", "page", */ "current", "last", "before", "before2", "partion", "earliest_date", "sellerName"] //or array of strings
+        columns: ["collect_date", "keywords", "asin", "title", "price", "rating", "brand", /*"url", "image", "reviewUrl",*/ "upDate", "totalReviews", /*"originalPrice", "fromUrl", "page", */ "current", "last", "before", "before2", "partion", "earliest_date", "estimate_year", "sellerName"] //or array of strings
     }; // dataList 里面如果出现#号,就会出错的
     var csv_content = Papa.unparse(dataList, config); // change dataList Array to csv File  use papaparse
     //https://stackoverflow.com/questions/54793997/export-indexeddb-object-store-to-csv
@@ -1097,6 +1089,18 @@ async function downloadDataBg() {
             datafiltered.push(row);
     }
     datafiltered = drop_variant(datafiltered);
+    // Add estimate_year
+    datafiltered.map((x) => {
+        //一定有值
+        let earliest_year = parseInt(x["earliest_date"].replace(/.*(\d{4}).*/, "$1"));
+        //可能有值
+        if (x["upDate"].toLowerCase().indexOf("na") == -1) { //说明是有效值，不含有NA
+            let upDateYear = parseInt(x["upDate"].replace(/.*(\d{4}).*/, "$1"));
+            x["estimate_year"] = upDateYear > earliest_year ? earliest_year : upDateYear;
+        } else {
+            x["estimate_year"] = earliest_year;
+        }
+    });
     if (datafiltered.length == 0) {
         createNotify('数据文件大小为零，确定有按照12345来获取过数据吗？', '', false);
     } else {
