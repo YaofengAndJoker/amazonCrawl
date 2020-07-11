@@ -1,3 +1,15 @@
+let startButton = document.getElementById("analysisdata");
+let files = null;
+let filecontent = null;
+startButton.onclick = function() {
+    files = document.getElementById("files").files;
+    if (files[0].length) {
+        alert("Please choose at least one file to parse.");
+        return;
+    }
+    Papa.parse(files[0], { header: true, complete: (x) => { filecontent = x; } })
+}
+
 function computeAVG(list) {
     if (list.length == 0) {
         return 0;

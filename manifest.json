@@ -33,5 +33,7 @@
         "http://*/*",
         "https://*/*"
     ],
-    "homepage_url": "http://weibit.cn/"
+    "homepage_url": "http://weibit.cn/",
+    "content_security_policy": "script-src 'self' 'sha256-xbnfusHVICHAgGFM7kLLYzaaqaN5MWd/+T3V75iihqA=' 'unsafe-eval'; object-src 'self'"
+
 }

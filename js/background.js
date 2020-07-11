@@ -34,7 +34,7 @@ function showPic() {
     showImage = showStyle = showFont = true; //恢复图片  CSS和font的显示
 }
 
-function setNumber(generalWorkers, reviewsWorkers, generalWorksTime, reviewsWorksTime, keep, size, psize) {
+function setNumber(generalWorkers, reviewsWorkers, generalWorksTime, reviewsWorksTime, keep, size, psize, wmethod) {
     NUM_OF_WORKERS = generalWorkers;
     NUM_OF_BIN_SEARCH = reviewsWorkers;
     generalTime = generalWorksTime;
@@ -107,14 +107,14 @@ async function getOnePageReviews(page, tabid) {
     //1. 通过该tabid，打开该page
     let asin = tabWithAsin[tabid];
     let url = getCertainReviewURLs(asin, page); //await getUrls(currentTabid, `getCertainReviewURLs('${asin}',${page})`);
+    await wait(parseInt(generalTime * (Math.random() + 0.5)));
     //1.1 构造URL
     PageUpdate(tabid, url[0]);
+
     //2. 等待该tabid加载完成
-    await awaitOnePageLoading(tabid);
-    //页面加载完成，content_script不一定加载完成了啊,content script已经弃用
+    await Promise.race([awaitOnePageLoading(tabid), wait(90000)]);
     await wait(parseInt(reviewTime * (Math.random() * 0.5 + 0.5)));
 
-    //3. 注入脚本提取数据并返回
     return await awaitOneTabsExeScript(tabid);
 }
 
@@ -202,7 +202,7 @@ function binarySearchPartion(start, end, target, tabid) {
                 mid = parseInt((low + high) / 2);
                 flag = true;
                 let data = await getOnePageReviews(mid, tabid);
-                if (data === null || data.length <= 0) {
+                if (data === null || data == undefined || data.length <= 0) {
                     flag = false;
                     break;
                 }
@@ -245,7 +245,6 @@ function binarySearchPartion(start, end, target, tabid) {
             }
         } catch (error) {
             resolve([-1, -1]);
-            console.log("invalid data");
             return;
         }
 
@@ -517,7 +516,9 @@ async function main_control(task, update) {
                 currentURLIndex++;
             }
         }
-        await awaitPageLoading(); //监听onUpdated  等待页面加载完成 awaitPageLoading每次都要再承诺一次(新建一个Promise)
+
+        await Promise.race([awaitPageLoading(), wait(180000)]); //监听onUpdated  等待页面加载完成 awaitPageLoading每次都要再承诺一次(新建一个Promise)
+        await wait(parseInt(generalTime * (Math.random() * 0.5 + 0.5)));
         let extractorDataArray;
         if (update)
             extractorDataArray = await awaitTabsExeScript(tabsWithTask, task.extractor, afterGetDataFunUpdate, task.table_name, task.checkSaveCondition);
@@ -609,9 +610,6 @@ chrome.contextMenus.create({
                 dataList.push(data);
             }
         }
-        if (dataList.length == 0) {
-            createNotify("警告", "请确认获取过商品列表", false);
-        }
         if (!keep_haved) {
             dataList = dataRaw;
         }
@@ -672,9 +670,6 @@ chrome.contextMenus.create({
             if (data['totalReviews'] != 0 && data['price'] != 0 && data['totalReviews'] != -1 && data['earliest_date'] === -1) { // skip no reviews asin and price is 0 
                 dataList.push(data);
             }
-        }
-        if (dataList.length == 0) {
-            createNotify("警告", "请确认获取过商品列表，并且修正过评论数", false);
         }
         if (!keep_haved) {
             dataList.length = 0;

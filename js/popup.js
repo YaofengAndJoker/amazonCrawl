@@ -27,6 +27,10 @@ setShowPicbutton.onclick = function() {
     let bg = chrome.extension.getBackgroundPage();
     bg.showPic();
 };
+const analysisdatabutton = document.getElementById("analysisdata");
+analysisdatabutton.onclick = function() {
+    window.open(chrome.extension.getURL('analysis.html'));
+};
 const more_optionbutton = document.getElementById("more_option");
 more_optionbutton.onclick = function() {
     showMoreOption = !showMoreOption;
@@ -48,11 +52,11 @@ setWorkNumberbutton.onclick = function() {
     let reviewsWorksTime = parseInt(document.getElementById("works_time_reviews").value);
     let batchSize = parseInt(document.getElementById("batchsize").value);
     let pagesize = parseInt(document.getElementById("pagesize").value);
-    if (isNaN(generalWorksNumber) || generalWorksNumber <= 0) {
+    if (isNaN(generalWorksNumber) || generalWorksNumber <= 0 || generalWorksNumber > 30) {
         generalWorksNumber = 10;
     }
-    if (isNaN(reviewsWorksNumber) || reviewsWorksNumber <= 0) {
-        reviewsWorksNumber = 4;
+    if (isNaN(reviewsWorksNumber) || reviewsWorksNumber <= 0 || reviewsWorksNumber > 20) {
+        reviewsWorksNumber = 5;
     }
     if (isNaN(generalWorksTime) || generalWorksTime <= 0) {
         generalWorksTime = 10;
