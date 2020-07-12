@@ -1,5 +1,3 @@
-let startButton = document.getElementById("analysisdata");
-let files = null;
 
 function showgraph(data) {
     let result;
@@ -105,7 +103,7 @@ function showgraph(data) {
     var priceDic = JSON.parse(result["sum_data"]);
     var keyList = [];
     var valueList = [];
-    for (var key in priceDic) {
+    for (let key in priceDic) {
         keyList.push(key);
         valueList.push(priceDic[key]);
     }
@@ -238,7 +236,7 @@ function showgraph(data) {
     var band_result = JSON.parse(result.band_proportion_result);
     var band_display = [];
     var other = 0;
-    for (var key in band_result) {
+    for (let key in band_result) {
         //进行筛选,因为是排过序，所以找到第一个即可
         if (band_result[key] < 0.001) {
             other += band_result[key];
@@ -248,8 +246,8 @@ function showgraph(data) {
         }
     }
     band_display.push({ 'name': '占有率小于0.1%\n的品牌累积和', 'value': other });
-    var band_proportion_result = echarts.init(document.getElementById('band_proportion_result_pic'));
-    var band_proportion_result_option = {
+    let band_proportion_result = echarts.init(document.getElementById('band_proportion_result_pic'));
+    let band_proportion_result_option = {
         tooltip: {
             trigger: 'item',
             formatter: '{a} <br/>{b}: {d}%'
@@ -293,7 +291,7 @@ function displayanalysisResult(data, graphtitle) {
         showgraph(data);
         //修改title
         let title = document.getElementById('keywordtitle');
-        if (graphtitle != undefined)
+        if (graphtitle !== undefined)
             title.innerText = ("关键词:  " + graphtitle);
         else {
             title.innerText = "分析图示例";
@@ -313,12 +311,11 @@ const readcsvfun = (files) => new Promise((resolve, reject) => {
         }
     });
 });
-
+let startButton = document.getElementById("analysisdata");
 startButton.onclick = async function() {
     files = document.getElementById("files").files;
     if (files[0].length) {
         alert("Please choose at least one file to parse.");
-        return;
     } else {
         let filecontent = await readcsvfun(files);
         //进行数据分析
@@ -353,19 +350,18 @@ startButton.onclick = async function() {
         let graphtitle = filecontent[0]["keywords"];
         displayanalysisResult(displayresult, graphtitle);
     }
-}
+};
 
 /**
  * date1 date2 是2019-06-18的格式
  * @param {*} date1 
- * @param {*} data2 
+ * @param {*} date2
  */
 function daysDistance(date1, date2) {
     date1 = Date.parse(date1);
     date2 = Date.parse(date2);
     let ms = Math.abs(date2 - date1);
-    let days = Math.floor(ms / (24 * 3600 * 1000))
-    return days;
+    return Math.floor(ms / (24 * 3600 * 1000));
 }
 
 function computeDatePartion(list) {
@@ -375,7 +371,7 @@ function computeDatePartion(list) {
 }
 
 function computeAVG(list) {
-    if (list.length == 0) {
+    if (list.length === 0) {
         return 0;
     } else {
         let sum = list.reduce((x, y) => {
@@ -413,7 +409,7 @@ function computeOneCloumnSum(list, column_name) {
         let num = parseFloat(x[column_name]);
         if (!isNaN(num))
             result += num;
-    })
+    });
     return result;
 }
 
@@ -469,16 +465,16 @@ function proportion(data, datePart) {
     let x = [1, 2, 2 + datePart];
     //获取所有的第三方卖家
     let thirdPart = data.filter((x) => {
-        if (x['sellerName'] == undefined)
+        if (x['sellerName'] === undefined)
             console.log(x);
         if (x['sellerName'].toLowerCase().indexOf('amazon') === -1) {
             return true;
         }
     });
     let amazonPart = data.filter((x) => { ////获取所有的亚马逊自营
-        if (x['sellerName'] == undefined)
+        if (x['sellerName'] === undefined)
             console.log(x);
-        if (x['sellerName'].toLowerCase().indexOf('amazon') != -1) {
+        if (x['sellerName'].toLowerCase().indexOf('amazon') !== -1) {
             return true;
         }
     });
@@ -516,19 +512,19 @@ function price_scope(data) {
         if (level > 20)
             level = 20;
         row['bin'] = level;
-    })
+    });
     let resultdict = {};
     //计算不同分箱的销售额,只看今年的
     for (let i = 0; i < 21; i++) {
         let onelevelbin = data.filter((row) => {
-            if (row['bin'] == i)
+            if (row['bin'] === i)
                 return true;
         });
         //计算总销售额
         let tradeVolume = computeOneCloumnSum(onelevelbin, 'currentYTD');
         let left = '[' + i * 5;
-        let right = ''
-        if (i == 20)
+        let right = '';
+        if (i === 20)
             right = 1000 + ')';
         else
             right = (i + 1) * 5 + ')';
@@ -548,15 +544,15 @@ function newcome_perform(data, datePart) {
             return true;
     });
     let before = data.filter((x) => {
-        if (parseInt(x['estimate_year']) == (currentNum - 2))
+        if (parseInt(x['estimate_year']) === (currentNum - 2))
             return true;
     });
     let last = data.filter((x) => {
-        if (parseInt(x['estimate_year']) == (currentNum - 1))
+        if (parseInt(x['estimate_year']) === (currentNum - 1))
             return true;
     });
     let current = data.filter((x) => {
-        if (parseInt(x['estimate_year']) == (currentNum))
+        if (parseInt(x['estimate_year']) === (currentNum))
             return true;
     });
     //计算总和
@@ -610,6 +606,9 @@ function newcome_perform(data, datePart) {
     let result = [equalbeforebefore / (othersumbefore + equalbeforebefore), (equallastlast) / (othersumlast + equalbeforelast + equallastlast), (equalcurrentcurrent) / (equalcurrentcurrent + othersumcurrent + equalbeforecurrent + equallastcurrent)];
     let slope_result = computeSlop(x, result);
     result.push(result[2] + slope_result);
+    before.length = before.length||1;
+    last.length = last.length||1;
+    current.length = current.length||1;
     let avg_result = [equalbeforebefore / (othersumbefore + equalbeforebefore) / before.length, (equallastlast) / (othersumlast + equalbeforelast + equallastlast) / last.length, (equalcurrentcurrent) / (equalcurrentcurrent + othersumcurrent + equalbeforecurrent + equallastcurrent) / current.length];
     let avg_slope_result = computeSlop(x, avg_result);
     avg_result.push(avg_result[2] + avg_slope_result);
@@ -626,15 +625,15 @@ function newcome_trend_perform(data, reviewPart) { //随着时间推移，占比
     //                                2019上架的   在2019占的比例  2020年占的比例（预估）
     //                                                           2020年占的比例（预估）
     let before = data.filter((x) => {
-        if (parseInt(x['estimate_year']) == (currentNum - 2))
+        if (parseInt(x['estimate_year']) === (currentNum - 2))
             return true;
     });
     let last = data.filter((x) => {
-        if (parseInt(x['estimate_year']) == (currentNum - 1))
+        if (parseInt(x['estimate_year']) === (currentNum - 1))
             return true;
     });
     let current = data.filter((x) => {
-        if (parseInt(x['estimate_year']) == (currentNum))
+        if (parseInt(x['estimate_year']) === (currentNum))
             return true;
     });
 
@@ -652,7 +651,7 @@ function newcome_trend_perform(data, reviewPart) { //随着时间推移，占比
         equalbeforecurrent += x['currentYTD'] * reviewPart;
     });
     //根据这3个值，推测一下2020年的
-    let arraybefore = [equalbeforebefore, equalbeforelast, equalbeforecurrent]
+    let arraybefore = [equalbeforebefore, equalbeforelast, equalbeforecurrent];
     let before_slope = computeSlop(x, arraybefore);
     arraybefore.push(arraybefore[2] + before_slope);
 
@@ -678,7 +677,7 @@ function newcome_trend_perform(data, reviewPart) { //随着时间推移，占比
     //推测的2020的表现
     arraylast[0] = arraylast[0] || 1;
     arraybefore[0] = arraybefore[0] || 1;
-    let arraycurrentpredit = (arraylast[1] / arraylast[0] + arraybefore[1] / arraybefore[0]) / 2 * equalcurrentcurrent
+    let arraycurrentpredit = (arraylast[1] / arraylast[0] + arraybefore[1] / arraybefore[0]) / 2 * equalcurrentcurrent;
     let arraycurrent = [equalcurrentcurrent, arraycurrentpredit];
     //根据slope推测的2020
     let y = [arraybefore[0], arraylast[0], arraycurrent[0]];
@@ -707,7 +706,7 @@ function band_proportion(data, datePart) {
     //统计有哪些品牌
     let brands = [];
     data.map((x) => {
-        if (brands.indexOf(x['brand'] == -1)) {
+        if (brands.indexOf(x['brand'] === -1)) {
             brands.push(x['brand']);
         }
     });
@@ -715,7 +714,7 @@ function band_proportion(data, datePart) {
     //得知每个品牌，3年的销售额
     brands.map((brand) => {
         let datafilterd = data.filter((row) => {
-            return row['brand'] == brand;
+            return row['brand'] === brand;
         });
         let before = 0;
         datafilterd.map((x) => { //在2017年有多少 //计算这个品牌前年的销售额
