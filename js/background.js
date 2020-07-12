@@ -25,7 +25,7 @@ let keep_haved = true;
 let batchSize = 200;
 chrome.browserAction.setBadgeText({ text: '' });
 chrome.browserAction.setBadgeBackgroundColor({ color: [0, 0, 0, 0] });
-const wait = ms => new Promise((resolve, reject) => {
+const wait = (ms) => new Promise((resolve, reject) => {
     setTimeout(resolve, ms);
 });
 
