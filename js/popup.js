@@ -15,6 +15,7 @@ function echo() {
     document.getElementById("keep_haved").checked = !!loginDate["keep_haved"];
     document.getElementById("batchsize").value = loginDate["batchSize"];
     document.getElementById("pagesize").value = loginDate["pageSize"];
+    document.getElementById("work_timeout").value = loginDate["LoadingTimeout"];
 }
 echo();
 const invokebgButton = document.getElementById("invoke_background_js");
@@ -52,11 +53,12 @@ setWorkNumberbutton.onclick = function() {
     let reviewsWorksTime = parseInt(document.getElementById("works_time_reviews").value);
     let batchSize = parseInt(document.getElementById("batchsize").value);
     let pagesize = parseInt(document.getElementById("pagesize").value);
-    if (isNaN(generalWorksNumber) || generalWorksNumber <= 0 || generalWorksNumber > 30) {
+    let work_timeout = parseInt(document.getElementById("work_timeout").value);
+    if (isNaN(generalWorksNumber) || generalWorksNumber <= 0 || generalWorksNumber > 15) {
         generalWorksNumber = 10;
     }
-    if (isNaN(reviewsWorksNumber) || reviewsWorksNumber <= 0 || reviewsWorksNumber > 20) {
-        reviewsWorksNumber = 5;
+    if (isNaN(reviewsWorksNumber) || reviewsWorksNumber <= 0 || reviewsWorksNumber > 15) {
+        reviewsWorksNumber = 10;
     }
     if (isNaN(generalWorksTime) || generalWorksTime <= 0) {
         generalWorksTime = 10;
@@ -70,8 +72,11 @@ setWorkNumberbutton.onclick = function() {
     if (isNaN(pagesize) || pagesize <= 0) {
         pagesize = 3;
     }
+    if (isNaN(work_timeout) || work_timeout <= 8 || work_timeout > 180) {
+        work_timeout = 10;
+    }
     let bg = chrome.extension.getBackgroundPage();
-    bg.setNumber(generalWorksNumber, reviewsWorksNumber, generalWorksTime, reviewsWorksTime, document.getElementById("keep_haved").checked, batchSize, pagesize);
+    bg.setNumber(generalWorksNumber, reviewsWorksNumber, generalWorksTime, reviewsWorksTime, document.getElementById("keep_haved").checked, batchSize, pagesize, work_timeout);
     document.getElementById("setNumberStatus").innerText = "设置完成";
 };
 const openNewButton = document.getElementById("open_url_new_tab");

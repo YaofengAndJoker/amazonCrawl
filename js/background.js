@@ -23,6 +23,7 @@ let generalTime = 10;
 let isbusy = false;
 let keep_haved = true;
 let batchSize = 200;
+let LoadingTimeout = 10; //默认10s
 chrome.browserAction.setBadgeText({ text: '' });
 chrome.browserAction.setBadgeBackgroundColor({ color: [0, 0, 0, 0] });
 const wait = (ms) => new Promise((resolve, reject) => {
@@ -34,7 +35,7 @@ function showPic() {
     showImage = showStyle = showFont = true; //恢复图片  CSS和font的显示
 }
 
-function setNumber(generalWorkers, reviewsWorkers, generalWorksTime, reviewsWorksTime, keep, size, psize, wmethod) {
+function setNumber(generalWorkers, reviewsWorkers, generalWorksTime, reviewsWorksTime, keep, size, psize, timeout) {
     NUM_OF_WORKERS = generalWorkers;
     NUM_OF_BIN_SEARCH = reviewsWorkers;
     generalTime = generalWorksTime;
@@ -42,6 +43,7 @@ function setNumber(generalWorkers, reviewsWorkers, generalWorksTime, reviewsWork
     keep_haved = keep;
     batchSize = size;
     pageSize = psize;
+    LoadingTimeout = timeout;
 }
 
 function echo() {
@@ -52,6 +54,7 @@ function echo() {
     validDate["keep_haved"] = keep_haved;
     validDate["batchSize"] = batchSize;
     validDate["pageSize"] = pageSize;
+    validDate["LoadingTimeout"] = LoadingTimeout;
     return validDate;
 
 }
@@ -110,9 +113,11 @@ async function getOnePageReviews(page, tabid) {
     await wait(parseInt(generalTime * (Math.random() + 0.5)));
     //1.1 构造URL
     PageUpdate(tabid, url[0]);
-
+    //注入超时停止加载的代码
+    chrome.tabs.executeScript(tabid, { code: `setTimeout(()=>{window.stop();},${LoadingTimeout*1000})`, runAt: "document_start" });
     //2. 等待该tabid加载完成
-    await Promise.race([awaitOnePageLoading(tabid), wait(90000)]);
+    //await Promise.race([awaitOnePageLoading(tabid), wait(90000)]);
+    await awaitOnePageLoading(tabid);
     await wait(parseInt(reviewTime * (Math.random() * 0.5 + 0.5)));
 
     return await awaitOneTabsExeScript(tabid);
@@ -379,6 +384,12 @@ function awaitOneTabsExeScript(tabid) {
     });
 }
 
+function addTimeoutForAllTab() {
+    for (let item of tabsWithTask) {
+        chrome.tabs.executeScript(item, { code: `setTimeout(()=>{window.stop();},${LoadingTimeout*1000})`, runAt: "document_start" });
+    }
+}
+
 function awaitTabsExeScript(tabsWithTask, extractor, afterGetDataFun, table_name, checkSaveCondition) {
     let awaitExeScript = [];
     for (let item of tabsWithTask) {
@@ -508,8 +519,8 @@ async function main_control(task, update) {
                 currentURLIndex++;
             }
         }
-
-        await Promise.race([awaitPageLoading(), wait(180000)]); //监听onUpdated  等待页面加载完成 awaitPageLoading每次都要再承诺一次(新建一个Promise)
+        addTimeoutForAllTab(); //注入超时时间代码
+        await awaitPageLoading(); //监听onUpdated  等待页面加载完成 awaitPageLoading每次都要再承诺一次(新建一个Promise)
         await wait(parseInt(generalTime * (Math.random() * 0.5 + 0.5)));
         let extractorDataArray;
         if (update)
