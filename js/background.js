@@ -14,7 +14,7 @@ let currentTabid = undefined;
 let MAX_ONE_PAGE_NUMBERS = 10;
 let REVIEW_YEAR_RANGE = 4;
 let tabWithAsin = {};
-let valid = false;
+let valid = true;
 let pageSize = 3;
 let validDate = {};
 let stopTask = false;
@@ -1061,30 +1061,30 @@ async function downloadDataBg() {
         return x['totalReviews'] != -1;
     });
     if (!miss2Array.length) {
-        createNotify('没有执行过步骤2！请执行', '', false);
-        return;
+        createNotify('提示:没有执行过步骤2！请按照需要执行', '', false);
+        //return;
     }
     let miss3Array = dataList.filter((x) => {
         //找到所有 earliest_date 不是-1的，如果数量大于1，说明是有效的，否则是无效的
         return x['earliest_date'] != -1;
     });
     if (!miss3Array.length) {
-        createNotify('没有执行过步骤3！请执行', '', false);
-        return;
+        createNotify('提示:没有执行过步骤3！请按照需要执行', '', false);
+        //return;
     }
     let miss4Array = dataList.filter((x) => {
         return x['brand'] != -1;
     });
     if (!miss4Array.length) {
-        createNotify('没有执行过步骤4！请执行', '', false);
-        return;
+        createNotify('提示:没有执行过步骤4！请按照需要执行', '', false);
+        //return;
     }
     let miss5Array = dataList.filter((x) => {
         return x['current'] != -1;
     });
     if (!miss5Array.length) {
-        createNotify('没有执行过步骤5！请执行', '', false);
-        return;
+        createNotify('提示:没有执行过步骤5！请按照需要执行', '', false);
+        // return;
     }
     /*筛选条件，每一行数据中，不能出现-1，评论数不能为0，价格不为0*/
     for (let row of dataList) {

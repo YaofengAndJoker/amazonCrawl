@@ -17,6 +17,7 @@ function getQueryStringArgs() {
 }
 
 function getProductsURLs() {
+    window.stop(); //停止进一步加载，要放在函数内，不然可能会出返回undefined的问题
     const args = getQueryStringArgs();
     if (args['k'] == undefined) {
         window.alert("请输入关键词再执行步骤1");

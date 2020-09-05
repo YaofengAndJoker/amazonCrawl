@@ -1,4 +1,5 @@
 function extractEarliestReview() {
+    window.stop(); //停止进一步加载，要放在函数内，不然可能会出返回undefined的问题
     let pathArgs = location.pathname.split('/');
     pathArgs = pathArgs.filter((item) => {
         return item.length !== 0

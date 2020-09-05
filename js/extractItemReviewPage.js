@@ -1,4 +1,5 @@
 ﻿function extractItemReviewPage() {
+    window.stop(); //停止进一步加载，要放在函数内，不然可能会出返回undefined的问题
     /*
     const selectors = {  // copy from  extractSearResultPage
         pagination: '.a-section.a-spacing-small.a-spacing-top-small>span',

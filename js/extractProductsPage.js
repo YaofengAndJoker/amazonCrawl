@@ -1,4 +1,5 @@
 function getQueryStringArgs() {
+    window.stop(); //停止进一步加载，要放在函数内，不然可能会出返回undefined的问题
     var qs = location.search.length > 0 ? location.search.substring(1) : "";
     var args = {};
     var items = qs.length ? qs.split("&") : [];
